@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { GROUP_COLORS, generateGroupId, getNextColor } from '../../utils/groupUtils';
-import { useGroupsState, useGroupsDispatch } from '../../context/useGroupsHooks';
+import { GROUP_COLORS, getNextColor } from '../../utils/groupUtils';
+import { useGroupsState, useGroupsDispatch, useGroupsApi } from '../../context/useGroupsHooks';
 import type { SceneGroup, ParcelCoord } from '../../types';
 import styles from './GroupsSidebar.module.css';
 
@@ -17,8 +17,10 @@ export function GroupForm({
   onCancel,
   onSave,
 }: GroupFormProps) {
-  const { groups } = useGroupsState();
+  const { groups, error } = useGroupsState();
   const dispatch = useGroupsDispatch();
+  const { createGroup, updateGroup } = useGroupsApi();
+  const [isSaving, setIsSaving] = useState(false);
 
   // Default selection color is reserved and can't be chosen
   const DEFAULT_SELECTION_COLOR = '#00D9FF';
@@ -69,39 +71,39 @@ export function GroupForm({
     };
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim() || parcels.length === 0) return;
+    if (!name.trim() || parcels.length === 0 || isSaving) return;
 
-    const now = Date.now();
+    setIsSaving(true);
 
-    if (isEditing && editingGroup) {
-      const updatedGroup: SceneGroup = {
-        ...editingGroup,
-        name: name.trim(),
-        description: description.trim(),
-        color,
-        tags,
-        updatedAt: now,
-      };
-      dispatch({ type: 'UPDATE_GROUP', payload: updatedGroup });
-    } else {
-      const newGroup: SceneGroup = {
-        id: generateGroupId(),
-        name: name.trim(),
-        description: description.trim(),
-        color,
-        tags,
-        parcels: [...parcels],
-        createdAt: now,
-        updatedAt: now,
-      };
-      dispatch({ type: 'ADD_GROUP', payload: newGroup });
-      dispatch({ type: 'CLEAR_SELECTION' });
+    try {
+      if (isEditing && editingGroup) {
+        const result = await updateGroup(editingGroup.id, {
+          name: name.trim(),
+          description: description.trim(),
+          color,
+          tags,
+        });
+        if (result) {
+          onSave();
+        }
+      } else {
+        const result = await createGroup({
+          name: name.trim(),
+          description: description.trim(),
+          color,
+          tags,
+          parcels: [...parcels],
+        });
+        if (result) {
+          onSave();
+        }
+      }
+    } finally {
+      setIsSaving(false);
     }
-
-    onSave();
   };
 
   const handleAddTag = useCallback(() => {
@@ -203,20 +205,27 @@ export function GroupForm({
         </div>
       </div>
 
+      {error && (
+        <div className={styles.errorMessage}>
+          {error}
+        </div>
+      )}
+
       <div className={styles.footer} style={{ padding: 0, borderTop: 'none' }}>
         <button
           type="button"
           className={`${styles.button} ${styles.buttonSecondary}`}
           onClick={onCancel}
+          disabled={isSaving}
         >
           Cancel
         </button>
         <button
           type="submit"
           className={`${styles.button} ${styles.buttonPrimary}`}
-          disabled={!name.trim() || parcels.length === 0}
+          disabled={!name.trim() || parcels.length === 0 || isSaving}
         >
-          {isEditing ? 'Save Changes' : 'Create Group'}
+          {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Group'}
         </button>
       </div>
     </form>

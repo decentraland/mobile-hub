@@ -1,8 +1,10 @@
-import { useReducer, useEffect, type ReactNode } from 'react';
+import { useReducer, useEffect, useCallback, type ReactNode } from 'react';
 import { GroupsContext } from './groupsContextDef';
-import type { GroupsState, GroupsAction, ParcelCoord } from '../types';
-
-const STORAGE_KEY = 'decentraland-map-groups';
+import { useAuthenticatedFetch } from '../../../hooks/useAuthenticatedFetch';
+import { useAuth } from '../../../contexts/auth';
+import { isDevMode } from '../../../utils/devIdentity';
+import * as api from '../api/sceneGroupsApi';
+import type { GroupsState, GroupsAction, ParcelCoord, SceneGroup } from '../types';
 
 const initialState: GroupsState = {
   mode: 'view',
@@ -11,6 +13,8 @@ const initialState: GroupsState = {
   selectionColor: null,
   editingGroupId: null,
   sidebarOpen: false,
+  isLoading: false,
+  error: null,
 };
 
 function parcelEquals(a: ParcelCoord, b: ParcelCoord): boolean {
@@ -23,9 +27,7 @@ function groupsReducer(state: GroupsState, action: GroupsAction): GroupsState {
       return {
         ...state,
         mode: action.payload,
-        // When entering groups mode, open sidebar
         sidebarOpen: action.payload === 'groups' ? true : state.sidebarOpen,
-        // When leaving groups mode, clear selection
         selectedParcels: action.payload === 'groups' ? state.selectedParcels : [],
         selectionColor: action.payload === 'groups' ? state.selectionColor : null,
         editingGroupId: action.payload === 'groups' ? state.editingGroupId : null,
@@ -37,6 +39,8 @@ function groupsReducer(state: GroupsState, action: GroupsAction): GroupsState {
         groups: [...state.groups, action.payload],
         selectedParcels: [],
         selectionColor: null,
+        isLoading: false,
+        error: null,
       };
 
     case 'UPDATE_GROUP':
@@ -46,6 +50,8 @@ function groupsReducer(state: GroupsState, action: GroupsAction): GroupsState {
           g.id === action.payload.id ? action.payload : g
         ),
         editingGroupId: null,
+        isLoading: false,
+        error: null,
       };
 
     case 'DELETE_GROUP':
@@ -54,6 +60,8 @@ function groupsReducer(state: GroupsState, action: GroupsAction): GroupsState {
         groups: state.groups.filter((g) => g.id !== action.payload),
         editingGroupId:
           state.editingGroupId === action.payload ? null : state.editingGroupId,
+        isLoading: false,
+        error: null,
       };
 
     case 'SET_SELECTED_PARCELS':
@@ -112,6 +120,21 @@ function groupsReducer(state: GroupsState, action: GroupsAction): GroupsState {
       return {
         ...state,
         groups: action.payload,
+        isLoading: false,
+        error: null,
+      };
+
+    case 'SET_LOADING':
+      return {
+        ...state,
+        isLoading: action.payload,
+      };
+
+    case 'SET_ERROR':
+      return {
+        ...state,
+        error: action.payload,
+        isLoading: false,
       };
 
     default:
@@ -125,31 +148,74 @@ interface GroupsProviderProps {
 
 export function GroupsProvider({ children }: GroupsProviderProps) {
   const [state, dispatch] = useReducer(groupsReducer, initialState);
+  const authenticatedFetch = useAuthenticatedFetch();
+  const { isSignedIn } = useAuth();
 
-  // Load groups from localStorage on mount
+  // Load groups from API when signed in (or in dev mode)
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const groups = JSON.parse(stored);
+    const canLoad = isSignedIn || isDevMode();
+
+    if (!canLoad) {
+      dispatch({ type: 'LOAD_GROUPS', payload: [] });
+      return;
+    }
+
+    const loadGroups = async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      try {
+        const groups = await api.fetchAllSceneGroups(authenticatedFetch);
         dispatch({ type: 'LOAD_GROUPS', payload: groups });
+      } catch (error) {
+        console.error('Failed to load groups:', error);
+        dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to load groups' });
       }
-    } catch (e) {
-      console.error('Failed to load groups from localStorage:', e);
-    }
-  }, []);
+    };
 
-  // Save groups to localStorage when they change
-  useEffect(() => {
+    loadGroups();
+  }, [isSignedIn, authenticatedFetch]);
+
+  const createGroup = useCallback(async (input: api.CreateSceneGroupInput): Promise<SceneGroup | null> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.groups));
-    } catch (e) {
-      console.error('Failed to save groups to localStorage:', e);
+      const group = await api.createSceneGroup(authenticatedFetch, input);
+      dispatch({ type: 'ADD_GROUP', payload: group });
+      dispatch({ type: 'CLEAR_SELECTION' });
+      return group;
+    } catch (error) {
+      console.error('Failed to create group:', error);
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to create group' });
+      return null;
     }
-  }, [state.groups]);
+  }, [authenticatedFetch]);
+
+  const updateGroup = useCallback(async (id: string, input: api.UpdateSceneGroupInput): Promise<SceneGroup | null> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const group = await api.updateSceneGroup(authenticatedFetch, id, input);
+      dispatch({ type: 'UPDATE_GROUP', payload: group });
+      return group;
+    } catch (error) {
+      console.error('Failed to update group:', error);
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to update group' });
+      return null;
+    }
+  }, [authenticatedFetch]);
+
+  const deleteGroup = useCallback(async (id: string): Promise<boolean> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      await api.deleteSceneGroup(authenticatedFetch, id);
+      dispatch({ type: 'DELETE_GROUP', payload: id });
+      return true;
+    } catch (error) {
+      console.error('Failed to delete group:', error);
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to delete group' });
+      return false;
+    }
+  }, [authenticatedFetch]);
 
   return (
-    <GroupsContext.Provider value={{ state, dispatch }}>
+    <GroupsContext.Provider value={{ state, dispatch, createGroup, updateGroup, deleteGroup }}>
       {children}
     </GroupsContext.Provider>
   );

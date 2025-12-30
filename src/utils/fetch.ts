@@ -1,6 +1,7 @@
 import { Authenticator } from '@dcl/crypto'
 import type { AuthChain, AuthIdentity } from '@dcl/crypto'
 import { LocalStorageUtils } from '@dcl/single-sign-on-client'
+import { getDevIdentity, isDevMode } from './devIdentity'
 
 const AUTH_CHAIN_HEADER_PREFIX = 'x-identity-auth-chain-'
 const AUTH_TIMESTAMP_HEADER = 'x-identity-timestamp'
@@ -60,8 +61,14 @@ function getAuthChainSignature(method: string, path: string, metadata: string, c
  * @returns A fetch function that automatically handles authentication
  */
 export function createAuthenticatedFetch(wallet?: string, isSignedIn?: boolean) {
-  return function authenticatedFetch(url: string, init?: RequestInit, additionalMetadata: Record<string, unknown> = {}): Promise<Response> {
+  return async function authenticatedFetch(url: string, init?: RequestInit, additionalMetadata: Record<string, unknown> = {}): Promise<Response> {
     try {
+      // In dev mode with VITE_USE_DEV_IDENTITY=true, use a fake identity
+      if (isDevMode()) {
+        const { identity } = await getDevIdentity()
+        return signedFetch(url, identity, init || {}, additionalMetadata)
+      }
+
       // Only attempt signed fetch if user is signed in and we have a wallet
       if (isSignedIn && wallet) {
         const identity = LocalStorageUtils.getIdentity(wallet)

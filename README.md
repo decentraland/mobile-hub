@@ -15,6 +15,7 @@ A web application for curating and managing Decentraland parcels and scene group
 - Create, view, edit, and delete groups of parcels
 - Visual selection of parcels on the map
 - Floating top bar for mode selection (View/Create/Edit/Delete)
+- Persisted to backend API (mobile-bff)
 
 ### Authentication
 - Decentraland SSO integration via `@dcl/single-sign-on-client`
@@ -36,25 +37,40 @@ A web application for curating and managing Decentraland parcels and scene group
 ```
 src/
 ├── components/
-│   ├── Navbar/           # Decentraland navbar with auth
-│   └── ...
+│   └── Navbar/               # Decentraland navbar with auth
 ├── config/
 │   ├── env/
-│   │   ├── dev.json      # Development config
-│   │   └── prd.json      # Production config
-│   └── index.ts          # Config loader
+│   │   ├── dev.json          # Development config (MOBILE_BFF_URL, etc.)
+│   │   └── prd.json          # Production config
+│   └── index.ts              # Config loader
 ├── contexts/
 │   └── auth/
 │       ├── AuthProvider.tsx  # Auth context provider
 │       ├── types.ts          # Auth types
 │       ├── utils.ts          # Auth utilities
 │       └── index.ts
+├── features/
+│   └── map/
+│       ├── api/
+│       │   └── sceneGroupsApi.ts  # Scene groups API client
+│       ├── components/
+│       │   ├── GroupsSidebar/     # Scene groups sidebar UI
+│       │   ├── MapCanvas.tsx      # Canvas rendering
+│       │   └── ...
+│       ├── context/
+│       │   ├── GroupsContext.tsx  # Scene groups state + API
+│       │   ├── MapContext.tsx     # Map viewport state
+│       │   └── useGroupsHooks.ts  # Custom hooks
+│       ├── types/
+│       │   └── index.ts           # Type definitions
+│       └── utils/
+│           └── groupUtils.ts      # Group utilities
 ├── hooks/
-│   └── useAuthenticatedFetch.ts  # Authenticated fetch hook
+│   └── useAuthenticatedFetch.ts   # Authenticated fetch hook
 ├── pages/
-│   └── MapPage/          # Main map view
+│   └── MapPage.tsx                # Main map view
 ├── utils/
-│   └── fetch.ts          # signedFetch implementation
+│   └── fetch.ts                   # signedFetch implementation
 └── App.tsx
 ```
 
@@ -79,60 +95,42 @@ Set `VITE_REACT_APP_DCL_DEFAULT_ENV` to control the environment:
 
 ---
 
-## TODO: API Integration
+## API Integration
 
-The following tasks are needed to integrate this app with a backend API for persisting scene groups and other data:
+Scene groups are persisted to the [mobile-bff](../mobile-bff) backend.
 
-### Backend API Requirements
+### Backend API (mobile-bff)
 
-- [ ] **Define API endpoints** for scene group CRUD operations:
-  - `GET /api/scene-groups` - List user's scene groups
-  - `POST /api/scene-groups` - Create a new scene group
-  - `GET /api/scene-groups/:id` - Get a specific scene group
-  - `PUT /api/scene-groups/:id` - Update a scene group
-  - `DELETE /api/scene-groups/:id` - Delete a scene group
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/backoffice/scene-groups` | List all scene groups |
+| POST | `/backoffice/scene-groups` | Create a new scene group |
+| PUT | `/backoffice/scene-groups/:id` | Update a scene group |
+| DELETE | `/backoffice/scene-groups/:id` | Delete a scene group |
 
-- [ ] **Authentication middleware** - Verify signed requests using `@dcl/crypto` on the server
+All backoffice endpoints require:
+1. Signed requests via `signedFetch`
+2. Wallet address in `ALLOWED_USERS` env var on the backend
 
-- [ ] **Database schema** for scene groups:
-  - `id` - Unique identifier
-  - `name` - Group name
-  - `parcels` - Array of parcel coordinates `{x, y}`
-  - `owner` - Wallet address of the owner
-  - `createdAt` / `updatedAt` - Timestamps
+### Frontend Implementation
 
-### Frontend Integration
+- **API Client**: `src/features/map/api/sceneGroupsApi.ts`
+- **State Management**: `src/features/map/context/GroupsContext.tsx`
+- **Hooks**: `useGroupsState()`, `useGroupsDispatch()`, `useGroupsApi()`
 
-- [ ] **Create API service layer** (`src/services/api.ts`):
-  - Use `useAuthenticatedFetch` for all API calls
-  - Handle loading, error, and success states
-  - Add retry logic for failed requests
+Groups are loaded automatically when a user signs in.
 
-- [ ] **Scene Groups state management**:
-  - Create `useSceneGroups` hook for fetching and caching groups
-  - Implement optimistic updates for better UX
-  - Add sync status indicators
+### Configuration
 
-- [ ] **Connect MapPage to API**:
-  - Load scene groups on mount
-  - Save new groups to API when created
-  - Update/delete groups via API
-  - Handle offline mode gracefully
+Set `MOBILE_BFF_URL` in config files:
+- `src/config/env/dev.json` - Development (localhost:3000)
+- `src/config/env/prd.json` - Production
 
-- [ ] **Error handling UI**:
-  - Toast notifications for success/error states
-  - Retry buttons for failed operations
-  - Loading skeletons while fetching
+---
 
-### Additional Features
+## Future Enhancements
 
 - [ ] **Parcel metadata fetching** - Load parcel names/descriptions from Decentraland API
 - [ ] **Scene preview** - Show scene thumbnails when hovering groups
 - [ ] **Sharing** - Generate shareable links for scene groups
-- [ ] **Collaboration** - Allow multiple users to edit a group
-
-### Testing
-
-- [ ] **Unit tests** for API service functions
-- [ ] **Integration tests** for auth flow
-- [ ] **E2E tests** for scene group CRUD operations
+- [ ] **Offline mode** - Cache groups locally when offline

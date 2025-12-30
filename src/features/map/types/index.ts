@@ -67,6 +67,8 @@ export interface GroupsState {
   selectionColor: string | null;
   editingGroupId: string | null;
   sidebarOpen: boolean;
+  isLoading: boolean;
+  error: string | null;
 }
 
 export type GroupsAction =
@@ -81,4 +83,6 @@ export type GroupsAction =
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_SIDEBAR_OPEN'; payload: boolean }
   | { type: 'SET_SELECTION_COLOR'; payload: string | null }
-  | { type: 'LOAD_GROUPS'; payload: SceneGroup[] };
+  | { type: 'LOAD_GROUPS'; payload: SceneGroup[] }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null };

@@ -2,5 +2,6 @@
   "CHAIN_ID": "11155111",
   "ENVIRONMENT": "development",
   "AUTH_URL": "https://decentraland.zone/auth",
-  "PEER_URL": "https://peer.decentraland.zone"
+  "PEER_URL": "https://peer.decentraland.zone",
+  "MOBILE_BFF_URL": "https://mobile-bff.decentraland.zone"
 }
