@@ -1,4 +1,4 @@
- 
+
 const fs = require('fs')
 const dotenv = require('dotenv')
 
@@ -55,7 +55,7 @@ function getPublicUrls() {
   console.log('is CI', isCI)
   console.log('is Vercel', isVercel)
   console.log('is CDN', isCDN)
-  if (isCDN && false) {
+  if (isCDN) {
     // master/main branch, also releases
     const cdnUrl = `https://cdn.decentraland.org/${publicPackageJson.name}/${publicPackageJson.version}`
     console.log(`Using CDN as public url: "${cdnUrl}"`)
