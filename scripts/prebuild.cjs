@@ -40,6 +40,11 @@ fs.writeFileSync(
 fs.writeFileSync('./package.json', JSON.stringify(packageJson, null, 2))
 fs.writeFileSync('./public/package.json', JSON.stringify(publicPackageJson, null, 2))
 
+// copy README to public folder for npm publishing
+if (fs.existsSync('./README.md')) {
+  fs.copyFileSync('./README.md', './public/README.md')
+}
+
 // public url logic
 function getPublicUrls() {
   const isStatic = !!process.env.GEN_STATIC_LOCAL

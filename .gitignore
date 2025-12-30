@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+public/README.md
 dist-ssr
 *.local
 
@@ -23,3 +24,4 @@ dist-ssr
 *.sln
 *.sw?
 .env
+public/README.md
