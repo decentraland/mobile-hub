@@ -5,15 +5,25 @@ import { Navbar } from './components/Navbar'
 import { MapPage } from './pages/MapPage'
 import { config } from './config'
 
+// Base path injected by the server (see index.html)
+// When served from /hub/, the server rewrites __BASE_PATH__ to "/hub"
+declare global {
+  interface Window {
+    __BASE_PATH__?: string
+  }
+}
+
+const basePath = window.__BASE_PATH__ || ''
+
 const authConfig = {
   defaultChainId: Number(config.get('CHAIN_ID')) as ChainId,
   authUrl: config.get('AUTH_URL'),
-  basePath: '/mobile-curation'
+  basePath: basePath || '/mobile-curation'
 }
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basePath}>
       <AuthProvider config={authConfig}>
         <Navbar />
         <Routes>
