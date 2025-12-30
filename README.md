@@ -87,6 +87,35 @@ npm run dev
 npm run build
 ```
 
+## NPM Package
+
+This project is published to npm as `@dcl-regenesislabs/mobile-hub`. The built static files can be installed and served by any backend.
+
+### Publishing
+
+The build outputs to `dist/` which includes:
+- All static assets (JS, CSS, images)
+- `package.json` (copied from `public/package.json`)
+- `README.md` (copied during prebuild)
+
+```bash
+# Build and publish
+npm run build
+cd dist
+npm publish
+```
+
+### Serving from a Subpath
+
+The frontend supports being served from any URL path (e.g., `/hub/`, `/app/`, or root `/`).
+
+This is achieved via `window.__BASE_PATH__`:
+1. `index.html` contains `<script>window.__BASE_PATH__ = "";</script>`
+2. The serving backend can rewrite this to the actual base path (e.g., `"/hub"`)
+3. React Router uses this as its `basename` prop
+
+See [mobile-bff](https://github.com/decentraland/mobile-bff) for an example of serving this package with path rewriting.
+
 ## Environment Variables
 
 Set `VITE_REACT_APP_DCL_DEFAULT_ENV` to control the environment:
