@@ -1,6 +1,6 @@
 {
   "name": "@dcl-regenesislabs/mobile-hub",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Mobile Hub",
   "main": "index.js",
   "scripts": {

@@ -62,5 +62,5 @@ export async function getDevIdentity(): Promise<DevIdentity> {
 }
 
 export function isDevMode(): boolean {
-  return config.get('USE_DEV_IDENTITY', false)
+  return config.get('USE_DEV_IDENTITY', 'false') === 'true'
 }

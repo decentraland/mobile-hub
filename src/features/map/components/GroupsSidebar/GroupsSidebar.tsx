@@ -1,8 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useGroupsState, useGroupsDispatch } from '../../context/useGroupsHooks';
 import { GroupsList } from './GroupsList';
 import { GroupForm } from './GroupForm';
-import { isDevMode, getDevIdentity } from '../../../../utils/devIdentity';
 import type { SceneGroup } from '../../types';
 import styles from './GroupsSidebar.module.css';
 
