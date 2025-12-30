@@ -1,0 +1,133 @@
+.navbar-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+}
+
+.navbar-bar {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(28, 28, 32, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.navbar-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.navbar-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.navbar-button:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.navbar-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.navbar-button-icon {
+  font-size: 16px;
+}
+
+.navbar-avatar-button {
+  padding: 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.navbar-avatar-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.navbar-avatar-button:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.navbar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+
+.navbar-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.navbar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+
+.navbar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 160px;
+  background: rgba(28, 28, 32, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.navbar-menu-address {
+  padding: 12px 16px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.navbar-menu-item {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.navbar-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.navbar-menu-item:active {
+  background: rgba(255, 255, 255, 0.15);
+}
