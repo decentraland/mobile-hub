@@ -1,5 +1,6 @@
 # Mobile Curation
 
+
 A web application for curating and managing Decentraland parcels and scene groups on mobile devices.
 
 ## Features
