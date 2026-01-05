@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import { MapProvider } from '../context/MapContext';
 import { GroupsProvider } from '../context/GroupsContext';
-import { BansProvider } from '../context/BansContext';
 import { useGroupsState, useGroupsDispatch, useGroupsApi } from '../context/useGroupsHooks';
 import { useBansApi } from '../context/useBansHooks';
 import { MapCanvas } from './MapCanvas';
@@ -264,9 +263,7 @@ export function MapView({
   return (
     <MapProvider initialCenter={initialCenter} initialZoom={initialZoom}>
       <GroupsProvider>
-        <BansProvider>
-          <MapViewContent onParcelClick={onParcelClick} />
-        </BansProvider>
+        <MapViewContent onParcelClick={onParcelClick} />
       </GroupsProvider>
     </MapProvider>
   );

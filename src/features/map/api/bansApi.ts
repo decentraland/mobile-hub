@@ -5,8 +5,10 @@ const API_BASE = config.get('MOBILE_BFF_URL')
 
 export interface Ban {
   id: string
-  groupId: string | null  // If set, it's a group ban; if null, it's a scene ban
+  groupId: string | null  // If set, it's a group ban
+  worldName: string | null  // If set, it's a world ban
   parcels: ParcelCoord[]  // For scene bans, the parcels that identify the scene
+  sceneId: string | null  // Entity ID at ban time (for detecting redeploys)
   reason?: string
   createdAt: number
   createdBy?: string
@@ -19,6 +21,13 @@ export interface CreateGroupBanInput {
 
 export interface CreateSceneBanInput {
   parcels: ParcelCoord[]
+  sceneId?: string  // Entity ID of the scene at ban time
+  reason?: string
+}
+
+export interface CreateWorldBanInput {
+  worldName: string
+  sceneId?: string  // Entity ID of the world at ban time
   reason?: string
 }
 
@@ -26,7 +35,9 @@ export interface CreateSceneBanInput {
 interface ApiBan {
   id: string
   groupId: string | null
+  worldName: string | null
   parcels: ParcelCoord[]
+  sceneId: string | null
   reason?: string
   createdAt: number
   createdBy?: string
@@ -42,7 +53,9 @@ function transformBan(data: ApiBan): Ban {
   return {
     id: data.id,
     groupId: data.groupId,
+    worldName: data.worldName,
     parcels: data.parcels || [],
+    sceneId: data.sceneId,
     reason: data.reason || undefined,
     createdAt: data.createdAt,
     createdBy: data.createdBy,
@@ -108,7 +121,28 @@ export async function createSceneBan(
 }
 
 /**
- * Delete a ban (unban a group or scene)
+ * Create a world ban
+ */
+export async function createWorldBan(
+  authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>,
+  input: CreateWorldBanInput
+): Promise<Ban> {
+  const response = await authenticatedFetch(`${API_BASE}/backoffice/bans`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const json: ApiResponse<ApiBan> = await response.json()
+
+  if (!json.ok || !json.data) {
+    throw new Error(json.error || 'Failed to create world ban')
+  }
+
+  return transformBan(json.data)
+}
+
+/**
+ * Delete a ban (unban a group, scene, or world)
  */
 export async function deleteBan(
   authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>,
@@ -137,7 +171,15 @@ export function isGroupBanned(bans: Ban[], groupId: string): boolean {
 export function isSceneBanned(bans: Ban[], parcels: ParcelCoord[]): boolean {
   if (parcels.length === 0) return false
   const sceneKey = generateParcelKey(parcels)
-  return bans.some(ban => ban.groupId === null && generateParcelKey(ban.parcels) === sceneKey)
+  return bans.some(ban => ban.groupId === null && ban.worldName === null && generateParcelKey(ban.parcels) === sceneKey)
+}
+
+/**
+ * Check if a world is banned
+ */
+export function isWorldBanned(bans: Ban[], worldName: string): boolean {
+  const normalizedName = worldName.trim().toLowerCase()
+  return bans.some(ban => ban.worldName === normalizedName)
 }
 
 /**
@@ -153,7 +195,15 @@ export function getBanForGroup(bans: Ban[], groupId: string): Ban | undefined {
 export function getBanForScene(bans: Ban[], parcels: ParcelCoord[]): Ban | undefined {
   if (parcels.length === 0) return undefined
   const sceneKey = generateParcelKey(parcels)
-  return bans.find(ban => ban.groupId === null && generateParcelKey(ban.parcels) === sceneKey)
+  return bans.find(ban => ban.groupId === null && ban.worldName === null && generateParcelKey(ban.parcels) === sceneKey)
+}
+
+/**
+ * Get the ban for a world (if exists)
+ */
+export function getBanForWorld(bans: Ban[], worldName: string): Ban | undefined {
+  const normalizedName = worldName.trim().toLowerCase()
+  return bans.find(ban => ban.worldName === normalizedName)
 }
 
 /**
