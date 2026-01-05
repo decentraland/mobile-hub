@@ -3,34 +3,32 @@ import type { ParcelCoord } from '../types'
 
 const API_BASE = config.get('MOBILE_BFF_URL')
 
-// Ban target type - either a group or a scene (identified by parcels)
-export type BanTargetType = 'group' | 'scene'
-
 export interface Ban {
   id: string
-  targetType: BanTargetType
-  targetId: string // groupId for groups, parcel key for scenes
-  parcels?: ParcelCoord[] // For scene bans, the parcels that make up the scene
+  groupId: string | null  // If set, it's a group ban; if null, it's a scene ban
+  parcels: ParcelCoord[]  // For scene bans, the parcels that identify the scene
   reason?: string
   createdAt: number
   createdBy?: string
 }
 
-export interface CreateBanInput {
-  targetType: BanTargetType
-  targetId: string
-  parcels?: ParcelCoord[]
+export interface CreateGroupBanInput {
+  groupId: string
+  reason?: string
+}
+
+export interface CreateSceneBanInput {
+  parcels: ParcelCoord[]
   reason?: string
 }
 
 // Backend response types
 interface ApiBan {
   id: string
-  targetType: BanTargetType
-  targetId: string
-  parcels?: ParcelCoord[]
+  groupId: string | null
+  parcels: ParcelCoord[]
   reason?: string
-  createdAt: string
+  createdAt: number
   createdBy?: string
 }
 
@@ -43,11 +41,10 @@ interface ApiResponse<T> {
 function transformBan(data: ApiBan): Ban {
   return {
     id: data.id,
-    targetType: data.targetType,
-    targetId: data.targetId,
-    parcels: data.parcels,
+    groupId: data.groupId,
+    parcels: data.parcels || [],
     reason: data.reason || undefined,
-    createdAt: new Date(data.createdAt).getTime(),
+    createdAt: data.createdAt,
     createdBy: data.createdBy,
   }
 }
@@ -69,11 +66,11 @@ export async function fetchAllBans(
 }
 
 /**
- * Create a new ban (ban a group or scene)
+ * Create a group ban
  */
-export async function createBan(
+export async function createGroupBan(
   authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>,
-  input: CreateBanInput
+  input: CreateGroupBanInput
 ): Promise<Ban> {
   const response = await authenticatedFetch(`${API_BASE}/backoffice/bans`, {
     method: 'POST',
@@ -83,7 +80,28 @@ export async function createBan(
   const json: ApiResponse<ApiBan> = await response.json()
 
   if (!json.ok || !json.data) {
-    throw new Error(json.error || 'Failed to create ban')
+    throw new Error(json.error || 'Failed to create group ban')
+  }
+
+  return transformBan(json.data)
+}
+
+/**
+ * Create a scene ban
+ */
+export async function createSceneBan(
+  authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>,
+  input: CreateSceneBanInput
+): Promise<Ban> {
+  const response = await authenticatedFetch(`${API_BASE}/backoffice/bans`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const json: ApiResponse<ApiBan> = await response.json()
+
+  if (!json.ok || !json.data) {
+    throw new Error(json.error || 'Failed to create scene ban')
   }
 
   return transformBan(json.data)
@@ -110,7 +128,7 @@ export async function deleteBan(
  * Check if a group is banned
  */
 export function isGroupBanned(bans: Ban[], groupId: string): boolean {
-  return bans.some(ban => ban.targetType === 'group' && ban.targetId === groupId)
+  return bans.some(ban => ban.groupId === groupId)
 }
 
 /**
@@ -118,15 +136,15 @@ export function isGroupBanned(bans: Ban[], groupId: string): boolean {
  */
 export function isSceneBanned(bans: Ban[], parcels: ParcelCoord[]): boolean {
   if (parcels.length === 0) return false
-  const sceneKey = parcels.map(p => `${p.x},${p.y}`).sort().join('|')
-  return bans.some(ban => ban.targetType === 'scene' && ban.targetId === sceneKey)
+  const sceneKey = generateParcelKey(parcels)
+  return bans.some(ban => ban.groupId === null && generateParcelKey(ban.parcels) === sceneKey)
 }
 
 /**
  * Get the ban for a group (if exists)
  */
 export function getBanForGroup(bans: Ban[], groupId: string): Ban | undefined {
-  return bans.find(ban => ban.targetType === 'group' && ban.targetId === groupId)
+  return bans.find(ban => ban.groupId === groupId)
 }
 
 /**
@@ -134,13 +152,13 @@ export function getBanForGroup(bans: Ban[], groupId: string): Ban | undefined {
  */
 export function getBanForScene(bans: Ban[], parcels: ParcelCoord[]): Ban | undefined {
   if (parcels.length === 0) return undefined
-  const sceneKey = parcels.map(p => `${p.x},${p.y}`).sort().join('|')
-  return bans.find(ban => ban.targetType === 'scene' && ban.targetId === sceneKey)
+  const sceneKey = generateParcelKey(parcels)
+  return bans.find(ban => ban.groupId === null && generateParcelKey(ban.parcels) === sceneKey)
 }
 
 /**
- * Generate a scene key from parcels (for use as targetId)
+ * Generate a unique key from parcels (for comparison)
  */
-export function generateSceneKey(parcels: ParcelCoord[]): string {
+export function generateParcelKey(parcels: ParcelCoord[]): string {
   return parcels.map(p => `${p.x},${p.y}`).sort().join('|')
 }

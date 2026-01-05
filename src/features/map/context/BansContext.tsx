@@ -2,15 +2,14 @@ import { createContext, useReducer, useEffect, useCallback, type ReactNode } fro
 import { useAuthenticatedFetch } from '../../../hooks/useAuthenticatedFetch'
 import {
   fetchAllBans,
-  createBan,
+  createGroupBan,
+  createSceneBan,
   deleteBan,
   isGroupBanned,
   isSceneBanned,
   getBanForGroup,
   getBanForScene,
-  generateSceneKey,
   type Ban,
-  type CreateBanInput,
 } from '../api/bansApi'
 import type { SceneGroup, ParcelCoord } from '../types'
 
@@ -110,12 +109,7 @@ export function BansProvider({ children }: BansProviderProps) {
   // Ban a group
   const banGroup = useCallback(async (group: SceneGroup, reason?: string) => {
     try {
-      const input: CreateBanInput = {
-        targetType: 'group',
-        targetId: group.id,
-        reason,
-      }
-      const ban = await createBan(authenticatedFetch, input)
+      const ban = await createGroupBan(authenticatedFetch, { groupId: group.id, reason })
       dispatch({ type: 'ADD_BAN', payload: ban })
     } catch (err) {
       console.error('Failed to ban group:', err)
@@ -142,13 +136,7 @@ export function BansProvider({ children }: BansProviderProps) {
     if (parcels.length === 0) return
 
     try {
-      const input: CreateBanInput = {
-        targetType: 'scene',
-        targetId: generateSceneKey(parcels),
-        parcels,
-        reason,
-      }
-      const ban = await createBan(authenticatedFetch, input)
+      const ban = await createSceneBan(authenticatedFetch, { parcels, reason })
       dispatch({ type: 'ADD_BAN', payload: ban })
     } catch (err) {
       console.error('Failed to ban scene:', err)
