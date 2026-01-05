@@ -12,7 +12,7 @@
   "dependencies": {
     "@dcl/crypto": "^3.4.5",
     "@dcl/schemas": "^21.0.0",
-    "@dcl/single-sign-on-client": "^2.0.0",
+    "@dcl/single-sign-on-client": "^0.1.0",
     "@dcl/ui-env": "^1.5.1",
     "decentraland-connect": "^10.0.1",
     "react": "^18.3.1",

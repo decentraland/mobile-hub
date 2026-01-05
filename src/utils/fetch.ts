@@ -1,6 +1,6 @@
 import { Authenticator } from '@dcl/crypto'
 import type { AuthChain, AuthIdentity } from '@dcl/crypto'
-import { LocalStorageUtils } from '@dcl/single-sign-on-client'
+import { localStorageGetIdentity } from '@dcl/single-sign-on-client'
 import { getDevIdentity, isDevMode } from './devIdentity'
 
 const AUTH_CHAIN_HEADER_PREFIX = 'x-identity-auth-chain-'
@@ -71,7 +71,7 @@ export function createAuthenticatedFetch(wallet?: string, isSignedIn?: boolean) 
 
       // Only attempt signed fetch if user is signed in and we have a wallet
       if (isSignedIn && wallet) {
-        const identity = LocalStorageUtils.getIdentity(wallet)
+        const identity = localStorageGetIdentity(wallet)
 
         if (identity && identity.expiration) {
           const expiration = new Date(identity.expiration)
