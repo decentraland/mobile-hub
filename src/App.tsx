@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ChainId } from '@dcl/schemas'
 import { AuthProvider } from './contexts/auth'
 import { Navbar } from './components/Navbar'
