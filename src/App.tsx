@@ -1,8 +1,11 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useState } from 'react'
+import { BrowserRouter } from 'react-router-dom'
 import { ChainId } from '@dcl/schemas'
 import { AuthProvider } from './contexts/auth'
 import { Navbar } from './components/Navbar'
+import { AppTabs, type AppView } from './components/AppTabs'
 import { MapPage } from './pages/MapPage'
+import { WorldsPage } from './pages/WorldsPage'
 import { config } from './config'
 
 const authConfig = {
@@ -13,14 +16,15 @@ const authConfig = {
 const basename = /^decentraland.(zone|org|today)$/.test(window.location.host) ? '/mobile-hub' : '/'
 
 function App() {
+  const [activeView, setActiveView] = useState<AppView>('map')
+
   return (
     <BrowserRouter basename={basename}>
       <AuthProvider config={authConfig}>
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<MapPage />} />
-          <Route path="*" element={<MapPage />} />
-        </Routes>
+        <Navbar
+          tabs={<AppTabs activeView={activeView} onViewChange={setActiveView} />}
+        />
+        {activeView === 'map' ? <MapPage /> : <WorldsPage />}
       </AuthProvider>
     </BrowserRouter>
   )

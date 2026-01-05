@@ -2,7 +2,6 @@ import { Authenticator, type AuthIdentity } from '@dcl/crypto'
 import { createUnsafeIdentity, computeAddress } from '@dcl/crypto/dist/crypto'
 import { getPublicKey } from 'ethereum-cryptography/secp256k1'
 import { bytesToHex, hexToBytes } from 'ethereum-cryptography/utils'
-import { config } from '../config'
 
 interface DevIdentity {
   identity: AuthIdentity
@@ -62,5 +61,7 @@ export async function getDevIdentity(): Promise<DevIdentity> {
 }
 
 export function isDevMode(): boolean {
-  return config.get('USE_DEV_IDENTITY', 'false') === 'true'
+  // Check if running on localhost
+  const hostname = window.location.hostname
+  return hostname === 'localhost' || hostname === '127.0.0.1'
 }

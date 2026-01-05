@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useAuth } from '../../contexts/auth'
 import { isDevMode, getDevIdentity } from '../../utils/devIdentity'
 import './Navbar.css'
 
-export const Navbar: FC = () => {
+interface NavbarProps {
+  tabs?: ReactNode
+}
+
+export const Navbar: FC<NavbarProps> = ({ tabs }) => {
   const { avatar, wallet, isSignedIn, isConnecting, signIn, signOut } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [devAddress, setDevAddress] = useState<string | null>(null)
@@ -22,6 +26,9 @@ export const Navbar: FC = () => {
     return (
       <div className="navbar-container">
         <div className="navbar-bar">
+          {tabs}
+        </div>
+        <div className="navbar-bar">
           <button className="navbar-button" disabled>
             Connecting...
           </button>
@@ -34,6 +41,9 @@ export const Navbar: FC = () => {
   if (isDevMode()) {
     return (
       <div className="navbar-container">
+        <div className="navbar-bar">
+          {tabs}
+        </div>
         <div className="navbar-bar">
           <div className="navbar-dev-badge">
             DEV
@@ -52,6 +62,9 @@ export const Navbar: FC = () => {
     return (
       <div className="navbar-container">
         <div className="navbar-bar">
+          {tabs}
+        </div>
+        <div className="navbar-bar">
           <button className="navbar-button" onClick={signIn}>
             <span className="navbar-button-icon">👤</span>
             Sign In
@@ -64,6 +77,9 @@ export const Navbar: FC = () => {
   return (
     <div className="navbar-container">
       <div className="navbar-bar">
+        {tabs}
+      </div>
+      <div className="navbar-bar navbar-user-bar">
         <button className="navbar-avatar-button" onClick={() => setMenuOpen(!menuOpen)}>
           {avatarUrl ? (
             <img src={avatarUrl} alt="Avatar" className="navbar-avatar" />
@@ -73,24 +89,23 @@ export const Navbar: FC = () => {
             </span>
           )}
         </button>
-      </div>
-
-      {menuOpen && (
-        <>
-          <div className="navbar-backdrop" onClick={() => setMenuOpen(false)} />
-          <div className="navbar-menu">
-            <div className="navbar-menu-address">
-              {wallet?.slice(0, 6)}...{wallet?.slice(-4)}
+        {menuOpen && (
+          <>
+            <div className="navbar-backdrop" onClick={() => setMenuOpen(false)} />
+            <div className="navbar-menu">
+              <div className="navbar-menu-address">
+                {wallet?.slice(0, 6)}...{wallet?.slice(-4)}
+              </div>
+              <button
+                className="navbar-menu-item"
+                onClick={() => { setMenuOpen(false); signOut(); }}
+              >
+                Sign Out
+              </button>
             </div>
-            <button
-              className="navbar-menu-item"
-              onClick={() => { setMenuOpen(false); signOut(); }}
-            >
-              Sign Out
-            </button>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

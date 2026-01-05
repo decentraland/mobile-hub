@@ -50,22 +50,26 @@ export function GroupForm({
   const [tags, setTags] = useState<string[]>(editingGroup?.tags || []);
   const [tagInput, setTagInput] = useState('');
 
-  const parcels = editingGroup?.parcels || selectedParcels;
+  // When editing, merge existing parcels with newly selected ones
+  const parcels = useMemo(() => {
+    if (!editingGroup) return selectedParcels;
+
+    // Combine existing parcels with newly selected parcels (avoid duplicates)
+    const existingSet = new Set(editingGroup.parcels.map(p => `${p.x},${p.y}`));
+    const newParcels = selectedParcels.filter(p => !existingSet.has(`${p.x},${p.y}`));
+    return [...editingGroup.parcels, ...newParcels];
+  }, [editingGroup, selectedParcels]);
+
   const isEditing = !!editingGroup;
 
-  // Update selection color when color changes (only for new groups, not editing)
+  // Update selection color when color changes
   useEffect(() => {
-    if (!isEditing) {
-      dispatch({ type: 'SET_SELECTION_COLOR', payload: color });
-    }
-  }, [color, isEditing, dispatch]);
+    dispatch({ type: 'SET_SELECTION_COLOR', payload: color });
+  }, [color, dispatch]);
 
-  // Set initial selection color on mount
+  // Set initial selection color on mount and reset on unmount
   useEffect(() => {
-    if (!isEditing) {
-      dispatch({ type: 'SET_SELECTION_COLOR', payload: color });
-    }
-    // Reset on unmount
+    dispatch({ type: 'SET_SELECTION_COLOR', payload: color });
     return () => {
       dispatch({ type: 'SET_SELECTION_COLOR', payload: null });
     };
@@ -85,6 +89,7 @@ export function GroupForm({
           description: description.trim(),
           color,
           tags,
+          parcels: [...parcels],
         });
         if (result) {
           onSave();
