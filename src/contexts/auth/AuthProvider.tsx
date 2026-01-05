@@ -118,68 +118,77 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children, config: userConf
     const checkAuthStatus = async () => {
       try {
         setIsConnecting(true)
-        debugLog('Checking auth status', undefined, config.debug)
+        console.log('[Auth] Checking auth status...')
+
+        // Log all localStorage keys that might contain identity
+        const allKeys = Object.keys(localStorage).filter(k => k.includes('sign') || k.includes('identity') || k.includes('dcl'))
+        console.log('[Auth] Relevant localStorage keys:', allKeys)
 
         // Try to get the previous connection from decentraland-connect
         try {
+          console.log('[Auth] Calling connection.tryPreviousConnection()...')
           const { account: walletAddress, chainId: connectedChainId } = await connection.tryPreviousConnection()
+          console.log('[Auth] tryPreviousConnection result:', { walletAddress, connectedChainId })
 
           if (walletAddress) {
-            debugLog('Previous connection found', { address: walletAddress, chainId: connectedChainId }, config.debug)
-
             setWallet(walletAddress)
             setChainId(connectedChainId)
 
             // Check identity inline to avoid dependency issues
             let isValidIdentity = false
             try {
+              // Try v2 format
+              console.log('[Auth] Checking identity with LocalStorageUtils.getIdentity for:', walletAddress)
               const identity = LocalStorageUtils.getIdentity(walletAddress)
+              console.log('[Auth] Identity from LocalStorageUtils:', identity)
+
+              // Also check v1 format directly
+              const v1Key = `single-sign-on-${walletAddress.toLowerCase()}`
+              const v1Data = localStorage.getItem(v1Key)
+              console.log('[Auth] Identity from v1 key (' + v1Key + '):', v1Data)
+
               if (identity && identity.expiration) {
                 const expiration = new Date(identity.expiration)
                 const now = new Date()
+                console.log('[Auth] Identity expiration check:', { expiration, now, isValid: now.getTime() <= expiration.getTime() })
                 if (now.getTime() <= expiration.getTime()) {
-                  debugLog('Identity valid', { expiration }, config.debug)
                   isValidIdentity = true
-                } else {
-                  debugLog('Identity expired', { expiration, now }, config.debug)
                 }
-              } else {
-                debugLog('No identity found', undefined, config.debug)
               }
             } catch (identityError) {
-              console.error('Error checking identity:', identityError)
+              console.error('[Auth] Error checking identity:', identityError)
             }
 
+            console.log('[Auth] Setting isSignedIn to:', isValidIdentity)
             setIsSignedIn(isValidIdentity)
 
             // Fetch avatar inline if identity is valid
             if (isValidIdentity && config.fetchAvatar) {
               try {
-                debugLog('Fetching avatar', { address: walletAddress }, config.debug)
                 const avatarData = await config.fetchAvatar(walletAddress)
                 if (avatarData) {
                   setAvatar(avatarData)
-                  debugLog('Avatar fetched successfully', avatarData, config.debug)
                 }
               } catch (avatarError) {
-                console.error('Error fetching avatar:', avatarError)
+                console.error('[Auth] Error fetching avatar:', avatarError)
               }
             }
           } else {
-            debugLog('No previous connection found', undefined, config.debug)
+            console.log('[Auth] No wallet address from tryPreviousConnection')
           }
         } catch (error) {
-          debugLog('Previous connection failed', error, config.debug)
+          console.error('[Auth] tryPreviousConnection failed:', error)
         }
       } catch (error: unknown) {
-        console.error('Error checking auth status:', error)
+        console.error('[Auth] Error checking auth status:', error)
       } finally {
         setIsConnecting(false)
+        console.log('[Auth] Auth check complete')
       }
     }
 
     checkAuthStatus()
-  }, [config.debug, config.fetchAvatar])
+  }, [config.debug, config])
 
   // Context value
   const contextValue: AuthContextValue = {
