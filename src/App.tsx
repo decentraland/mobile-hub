@@ -19,7 +19,7 @@ function App() {
         <Navbar />
         <Routes>
           <Route path="/" element={<MapPage />} />
-          <Route path="*" element={<Navigate to="/map" replace />} />
+          <Route path="*" element={<MapPage />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
