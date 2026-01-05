@@ -207,6 +207,51 @@ export const mapInteractionTests: TestCase[] = [
     ],
   },
 
+  // === BAN/UNBAN TESTS ===
+  {
+    name: 'Ban isolated scene',
+    description: 'Banning a scene not in a group should ban only that scene',
+    steps: [
+      'Click on a parcel with a scene that is NOT in any group',
+      'Wait for scene details to load',
+      'Click "Ban Scene" button',
+    ],
+    expectedResults: [
+      'Button changes to "Unban Scene"',
+      'Scene is marked as banned (button style changes)',
+      'Clicking "Unban Scene" reverts the ban',
+    ],
+  },
+  {
+    name: 'Ban scene in a group - bans whole group',
+    description: 'Banning a scene that belongs to a group should ban the entire group',
+    steps: [
+      'Create a group with multiple parcels',
+      'Click on any parcel in that group',
+      'Wait for scene details to load',
+      'Verify button shows "Ban Group" (not "Ban Scene")',
+      'Click "Ban Group" button',
+    ],
+    expectedResults: [
+      'Button changes to "Unban Group"',
+      'The entire group is marked as banned',
+      'Clicking on other parcels in the same group shows "Unban Group"',
+    ],
+  },
+  {
+    name: 'Ban status persists across scenes in group',
+    description: 'All scenes in a banned group should show as banned',
+    steps: [
+      'Ban a group via any scene in it',
+      'Click on a different parcel in the same group',
+      'Check the ban button status',
+    ],
+    expectedResults: [
+      'The button shows "Unban Group"',
+      'The banned status is consistent across all scenes in the group',
+    ],
+  },
+
   // === UI STATE TESTS ===
   {
     name: 'Coordinate display position',

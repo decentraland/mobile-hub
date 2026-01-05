@@ -6,9 +6,11 @@ import styles from './GroupsSidebar.module.css';
 
 interface GroupsListProps {
   onEditGroup: (group: SceneGroup) => void;
+  checkIsBanned?: (group: SceneGroup) => boolean;
+  onBanToggle?: (group: SceneGroup, shouldBan: boolean) => void;
 }
 
-export function GroupsList({ onEditGroup }: GroupsListProps) {
+export function GroupsList({ onEditGroup, checkIsBanned, onBanToggle }: GroupsListProps) {
   const { groups, isLoading, error } = useGroupsState();
   const dispatch = useGroupsDispatch();
   const mapDispatch = useMapDispatch();
@@ -78,6 +80,8 @@ export function GroupsList({ onEditGroup }: GroupsListProps) {
           onEdit={onEditGroup}
           onDelete={handleDelete}
           onClick={handleClick}
+          isBanned={checkIsBanned?.(group) ?? false}
+          onBanToggle={onBanToggle}
         />
       ))}
     </div>

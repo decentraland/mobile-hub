@@ -1,0 +1,211 @@
+import { createContext, useReducer, useEffect, useCallback, type ReactNode } from 'react'
+import { useAuthenticatedFetch } from '../../../hooks/useAuthenticatedFetch'
+import {
+  fetchAllBans,
+  createBan,
+  deleteBan,
+  isGroupBanned,
+  isSceneBanned,
+  getBanForGroup,
+  getBanForScene,
+  generateSceneKey,
+  type Ban,
+  type CreateBanInput,
+} from '../api/bansApi'
+import type { SceneGroup, ParcelCoord } from '../types'
+
+// State
+interface BansState {
+  bans: Ban[]
+  isLoading: boolean
+  error: string | null
+}
+
+// Actions
+type BansAction =
+  | { type: 'SET_BANS'; payload: Ban[] }
+  | { type: 'ADD_BAN'; payload: Ban }
+  | { type: 'REMOVE_BAN'; payload: string }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+
+// Reducer
+function bansReducer(state: BansState, action: BansAction): BansState {
+  switch (action.type) {
+    case 'SET_BANS':
+      return { ...state, bans: action.payload, isLoading: false, error: null }
+    case 'ADD_BAN':
+      return { ...state, bans: [...state.bans, action.payload] }
+    case 'REMOVE_BAN':
+      return { ...state, bans: state.bans.filter(b => b.id !== action.payload) }
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload }
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, isLoading: false }
+    default:
+      return state
+  }
+}
+
+// Initial state
+const initialState: BansState = {
+  bans: [],
+  isLoading: false,
+  error: null,
+}
+
+// Context types
+interface BansContextValue {
+  state: BansState
+  // Check functions
+  checkGroupBanned: (groupId: string) => boolean
+  checkSceneBanned: (parcels: ParcelCoord[]) => boolean
+  // API functions
+  banGroup: (group: SceneGroup, reason?: string) => Promise<void>
+  unbanGroup: (group: SceneGroup) => Promise<void>
+  banScene: (parcels: ParcelCoord[], reason?: string) => Promise<void>
+  unbanScene: (parcels: ParcelCoord[]) => Promise<void>
+  // Combined function for UI
+  toggleBan: (targetGroup?: SceneGroup, parcels?: ParcelCoord[], shouldBan?: boolean) => Promise<void>
+  refreshBans: () => Promise<void>
+}
+
+// Create context
+export const BansContext = createContext<BansContextValue | null>(null)
+
+// Provider
+interface BansProviderProps {
+  children: ReactNode
+}
+
+export function BansProvider({ children }: BansProviderProps) {
+  const [state, dispatch] = useReducer(bansReducer, initialState)
+  const authenticatedFetch = useAuthenticatedFetch()
+
+  // Fetch bans on mount
+  const refreshBans = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING', payload: true })
+    try {
+      const bans = await fetchAllBans(authenticatedFetch)
+      dispatch({ type: 'SET_BANS', payload: bans })
+    } catch (err) {
+      console.error('Failed to fetch bans:', err)
+      dispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err.message : 'Failed to fetch bans' })
+    }
+  }, [authenticatedFetch])
+
+  useEffect(() => {
+    refreshBans()
+  }, [refreshBans])
+
+  // Check functions
+  const checkGroupBanned = useCallback((groupId: string): boolean => {
+    return isGroupBanned(state.bans, groupId)
+  }, [state.bans])
+
+  const checkSceneBanned = useCallback((parcels: ParcelCoord[]): boolean => {
+    return isSceneBanned(state.bans, parcels)
+  }, [state.bans])
+
+  // Ban a group
+  const banGroup = useCallback(async (group: SceneGroup, reason?: string) => {
+    try {
+      const input: CreateBanInput = {
+        targetType: 'group',
+        targetId: group.id,
+        reason,
+      }
+      const ban = await createBan(authenticatedFetch, input)
+      dispatch({ type: 'ADD_BAN', payload: ban })
+    } catch (err) {
+      console.error('Failed to ban group:', err)
+      throw err
+    }
+  }, [authenticatedFetch])
+
+  // Unban a group
+  const unbanGroup = useCallback(async (group: SceneGroup) => {
+    const ban = getBanForGroup(state.bans, group.id)
+    if (!ban) return
+
+    try {
+      await deleteBan(authenticatedFetch, ban.id)
+      dispatch({ type: 'REMOVE_BAN', payload: ban.id })
+    } catch (err) {
+      console.error('Failed to unban group:', err)
+      throw err
+    }
+  }, [authenticatedFetch, state.bans])
+
+  // Ban a scene
+  const banScene = useCallback(async (parcels: ParcelCoord[], reason?: string) => {
+    if (parcels.length === 0) return
+
+    try {
+      const input: CreateBanInput = {
+        targetType: 'scene',
+        targetId: generateSceneKey(parcels),
+        parcels,
+        reason,
+      }
+      const ban = await createBan(authenticatedFetch, input)
+      dispatch({ type: 'ADD_BAN', payload: ban })
+    } catch (err) {
+      console.error('Failed to ban scene:', err)
+      throw err
+    }
+  }, [authenticatedFetch])
+
+  // Unban a scene
+  const unbanScene = useCallback(async (parcels: ParcelCoord[]) => {
+    const ban = getBanForScene(state.bans, parcels)
+    if (!ban) return
+
+    try {
+      await deleteBan(authenticatedFetch, ban.id)
+      dispatch({ type: 'REMOVE_BAN', payload: ban.id })
+    } catch (err) {
+      console.error('Failed to unban scene:', err)
+      throw err
+    }
+  }, [authenticatedFetch, state.bans])
+
+  // Combined toggle function for UI components
+  const toggleBan = useCallback(async (targetGroup?: SceneGroup, parcels?: ParcelCoord[], shouldBan?: boolean) => {
+    if (targetGroup) {
+      // Handle group ban/unban
+      const isBanned = checkGroupBanned(targetGroup.id)
+      const newBanState = shouldBan ?? !isBanned
+
+      if (newBanState && !isBanned) {
+        await banGroup(targetGroup)
+      } else if (!newBanState && isBanned) {
+        await unbanGroup(targetGroup)
+      }
+    } else if (parcels && parcels.length > 0) {
+      // Handle scene ban/unban
+      const isBanned = checkSceneBanned(parcels)
+      const newBanState = shouldBan ?? !isBanned
+
+      if (newBanState && !isBanned) {
+        await banScene(parcels)
+      } else if (!newBanState && isBanned) {
+        await unbanScene(parcels)
+      }
+    }
+  }, [checkGroupBanned, checkSceneBanned, banGroup, unbanGroup, banScene, unbanScene])
+
+  const value: BansContextValue = {
+    state,
+    checkGroupBanned,
+    checkSceneBanned,
+    banGroup,
+    unbanGroup,
+    banScene,
+    unbanScene,
+    toggleBan,
+    refreshBans,
+  }
+
+  return <BansContext.Provider value={value}>{children}</BansContext.Provider>
+}

@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
 import { MapProvider } from '../context/MapContext';
 import { GroupsProvider } from '../context/GroupsContext';
+import { BansProvider } from '../context/BansContext';
 import { useGroupsState, useGroupsDispatch, useGroupsApi } from '../context/useGroupsHooks';
+import { useBansApi } from '../context/useBansHooks';
 import { MapCanvas } from './MapCanvas';
 import { MapControls } from './MapControls';
 import { CoordinateDisplay } from './CoordinateDisplay';
@@ -33,9 +35,9 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
   const { groups, sidebarOpen } = useGroupsState();
   const groupsDispatch = useGroupsDispatch();
   const { updateGroup, deleteGroup } = useGroupsApi();
+  const { checkGroupBanned, checkSceneBanned, toggleBan } = useBansApi();
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('view');
   const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
-  const [bannedItems, setBannedItems] = useState<Set<string>>(new Set());
   const [highlightedParcels, setHighlightedParcels] = useState<ParcelCoord[]>([]);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('list');
 
@@ -49,34 +51,25 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
     [groups]
   );
 
-  // Check if an item is banned
-  const isItemBanned = useCallback((item: SelectedItem): boolean => {
-    if (!item) return false;
-    if (item.group) {
-      return bannedItems.has(`group:${item.group.id}`);
-    } else {
-      return bannedItems.has(`parcel:${item.parcel.x},${item.parcel.y}`);
+  // Check if a group or scene is banned (wrapper for SceneDetailSidebar)
+  const checkIsBanned = useCallback((targetGroup?: SceneGroup, parcels?: ParcelCoord[]): boolean => {
+    if (targetGroup) {
+      return checkGroupBanned(targetGroup.id);
     }
-  }, [bannedItems]);
+    if (parcels && parcels.length > 0) {
+      return checkSceneBanned(parcels);
+    }
+    return false;
+  }, [checkGroupBanned, checkSceneBanned]);
 
-  // Handle ban toggle
-  const handleBanToggle = useCallback((shouldBan: boolean) => {
-    if (!selectedItem) return;
-
-    setBannedItems(prev => {
-      const newSet = new Set(prev);
-      const key = selectedItem.group
-        ? `group:${selectedItem.group.id}`
-        : `parcel:${selectedItem.parcel.x},${selectedItem.parcel.y}`;
-
-      if (shouldBan) {
-        newSet.add(key);
-      } else {
-        newSet.delete(key);
-      }
-      return newSet;
-    });
-  }, [selectedItem]);
+  // Handle ban toggle (wrapper for SceneDetailSidebar)
+  const handleBanToggle = useCallback(async (shouldBan: boolean, targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => {
+    try {
+      await toggleBan(targetGroup, parcels, shouldBan);
+    } catch (err) {
+      console.error('Failed to toggle ban:', err);
+    }
+  }, [toggleBan]);
 
   const handleParcelClick = useCallback(
     (parcel: ParcelCoord) => {
@@ -202,6 +195,20 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
     groupsDispatch({ type: 'SET_SIDEBAR_OPEN', payload: true });
   }, [groupsDispatch]);
 
+  // Check if a group is banned (simplified for GroupsSidebar)
+  const checkGroupIsBanned = useCallback((group: SceneGroup): boolean => {
+    return checkGroupBanned(group.id);
+  }, [checkGroupBanned]);
+
+  // Handle ban toggle for a group (simplified for GroupsSidebar)
+  const handleGroupBanToggle = useCallback(async (group: SceneGroup, shouldBan: boolean) => {
+    try {
+      await toggleBan(group, undefined, shouldBan);
+    } catch (err) {
+      console.error('Failed to toggle group ban:', err);
+    }
+  }, [toggleBan]);
+
   const isSelectMode = interactionMode === 'select';
   const showDetailSidebar = selectedItem !== null && !isSelectMode;
 
@@ -222,6 +229,8 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
           onEnterSelectMode={() => setInteractionMode('select')}
           isSelectMode={isSelectMode}
           initialMode={sidebarMode}
+          checkIsBanned={checkGroupIsBanned}
+          onBanToggle={handleGroupBanToggle}
         />
       )}
       {showDetailSidebar && (
@@ -229,7 +238,7 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
           parcel={selectedItem.parcel}
           group={selectedItem.group}
           onClose={handleCloseDetailSidebar}
-          isBanned={isItemBanned(selectedItem)}
+          checkIsBanned={checkIsBanned}
           onBanToggle={handleBanToggle}
           onSceneLoaded={handleSceneLoaded}
           onCreateGroup={handleCreateGroupFromScene}
@@ -255,7 +264,9 @@ export function MapView({
   return (
     <MapProvider initialCenter={initialCenter} initialZoom={initialZoom}>
       <GroupsProvider>
-        <MapViewContent onParcelClick={onParcelClick} />
+        <BansProvider>
+          <MapViewContent onParcelClick={onParcelClick} />
+        </BansProvider>
       </GroupsProvider>
     </MapProvider>
   );

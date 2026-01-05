@@ -13,9 +13,11 @@ interface GroupsSidebarProps {
   onEnterSelectMode?: () => void;
   isSelectMode?: boolean;
   initialMode?: SidebarMode;
+  checkIsBanned?: (group: SceneGroup) => boolean;
+  onBanToggle?: (group: SceneGroup, shouldBan: boolean) => void;
 }
 
-export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMode = false, initialMode = 'list' }: GroupsSidebarProps) {
+export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMode = false, initialMode = 'list', checkIsBanned, onBanToggle }: GroupsSidebarProps) {
   const { sidebarOpen, selectedParcels, groups, editingGroupId } = useGroupsState();
   const dispatch = useGroupsDispatch();
   const [mode, setMode] = useState<SidebarMode>(initialMode);
@@ -124,7 +126,7 @@ export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMod
                 </p>
               </div>
             )}
-            <GroupsList onEditGroup={handleEditGroup} />
+            <GroupsList onEditGroup={handleEditGroup} checkIsBanned={checkIsBanned} onBanToggle={onBanToggle} />
           </>
         )}
 

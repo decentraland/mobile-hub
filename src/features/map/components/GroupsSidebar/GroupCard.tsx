@@ -6,9 +6,11 @@ interface GroupCardProps {
   onEdit: (group: SceneGroup) => void;
   onDelete: (groupId: string) => void;
   onClick: (group: SceneGroup) => void;
+  isBanned?: boolean;
+  onBanToggle?: (group: SceneGroup, shouldBan: boolean) => void;
 }
 
-export function GroupCard({ group, onEdit, onDelete, onClick }: GroupCardProps) {
+export function GroupCard({ group, onEdit, onDelete, onClick, isBanned = false, onBanToggle }: GroupCardProps) {
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     onEdit(group);
@@ -21,14 +23,22 @@ export function GroupCard({ group, onEdit, onDelete, onClick }: GroupCardProps) 
     }
   };
 
+  const handleBanToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onBanToggle?.(group, !isBanned);
+  };
+
   return (
-    <div className={styles.groupCard} onClick={() => onClick(group)}>
+    <div className={`${styles.groupCard} ${isBanned ? styles.groupCardBanned : ''}`} onClick={() => onClick(group)}>
       <div className={styles.groupCardHeader}>
         <div
           className={styles.groupColorDot}
           style={{ backgroundColor: group.color }}
         />
-        <h4 className={styles.groupName}>{group.name}</h4>
+        <h4 className={styles.groupName}>
+          {group.name}
+          {isBanned && <span className={styles.bannedBadge}>Banned</span>}
+        </h4>
       </div>
 
       <p className={styles.groupMeta}>
@@ -49,6 +59,12 @@ export function GroupCard({ group, onEdit, onDelete, onClick }: GroupCardProps) 
       <div className={styles.groupActions}>
         <button className={styles.actionButton} onClick={handleEdit}>
           Edit
+        </button>
+        <button
+          className={`${styles.actionButton} ${isBanned ? styles.actionButtonUnban : styles.actionButtonBan}`}
+          onClick={handleBanToggle}
+        >
+          {isBanned ? 'Unban' : 'Ban'}
         </button>
         <button className={styles.actionButton} onClick={handleDelete}>
           Delete
