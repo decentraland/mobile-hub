@@ -1,39 +1,17 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  useMemo
-} from 'react'
-import type { FC } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, useMemo, type FC } from 'react'
 import { useLocation } from 'react-router-dom'
-import { ChainId } from '@dcl/schemas'
-import type { Avatar } from '@dcl/schemas'
+import { ChainId, type Avatar } from '@dcl/schemas'
 import { LocalStorageUtils } from '@dcl/single-sign-on-client'
 import { connection } from 'decentraland-connect'
-import type {
-  AuthContextValue,
-  AuthProviderProps,
-  UseAuthOptions,
-  ProviderSwitchError
-} from './types'
-import {
-  createAuthConfig,
-  getAddEthereumChainParameters,
-  getProviderChainId,
-  debugLog,
-  buildRedirectUrl
-} from './utils'
+import type { AuthContextValue, AuthProviderProps, UseAuthOptions, ProviderSwitchError } from './types'
+import { createAuthConfig, getAddEthereumChainParameters, getProviderChainId, debugLog, buildRedirectUrl } from './utils'
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-export const AuthProvider: FC<AuthProviderProps> = ({
-  children,
-  config: userConfig
-}) => {
+export const AuthProvider: FC<AuthProviderProps> = ({ children, config: userConfig }) => {
   const { pathname, search } = useLocation()
 
+  // Memoize configuration to prevent recreation on every render
   const config = useMemo(() => createAuthConfig(userConfig), [userConfig])
 
   const [wallet, setWallet] = useState<string>()
@@ -42,6 +20,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({
   const [isConnecting, setIsConnecting] = useState(false)
   const [chainId, setChainId] = useState<ChainId>(config.defaultChainId)
 
+  // Sign in - redirect to auth page
   const signIn = useCallback(() => {
     debugLog('Initiating sign in', { pathname, search }, config.debug)
     const redirectUrl = buildRedirectUrl(config, pathname, search)
@@ -53,12 +32,15 @@ export const AuthProvider: FC<AuthProviderProps> = ({
     try {
       debugLog('Signing out', { wallet }, config.debug)
 
+      // Disconnect wallet
       connection.disconnect()
 
+      // Clear identity if we have a wallet address
       if (wallet) {
         LocalStorageUtils.setIdentity(wallet, null)
       }
 
+      // Clear state
       setWallet(undefined)
       setAvatar(undefined)
       setIsSignedIn(false)
@@ -72,12 +54,9 @@ export const AuthProvider: FC<AuthProviderProps> = ({
   const changeNetwork = useCallback(
     async (newChainId: ChainId = ChainId.ETHEREUM_MAINNET) => {
       try {
-        debugLog(
-          'Changing network',
-          { from: chainId, to: newChainId },
-          config.debug
-        )
+        debugLog('Changing network', { from: chainId, to: newChainId }, config.debug)
 
+        // Get provider for network switching
         const provider = await connection.getProvider()
 
         if (!provider) {
@@ -86,43 +65,42 @@ export const AuthProvider: FC<AuthProviderProps> = ({
           return
         }
 
+        // Set desired chain ID in state
         setChainId(newChainId)
 
+        // Try to switch chain using wallet_switchEthereumChain
         try {
           await provider.request({
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: '0x' + newChainId.toString(16) }]
           })
 
+          // Verify the chain ID has been changed
           const actualChainId = await getProviderChainId(provider)
           if (actualChainId !== newChainId) {
             console.warn('Chain ID did not change as expected')
           }
-          debugLog(
-            'Network changed successfully',
-            { chainId: actualChainId },
-            config.debug
-          )
+          debugLog('Network changed successfully', { chainId: actualChainId }, config.debug)
         } catch (error) {
           const switchError = error as ProviderSwitchError
+          // This error code indicates that the chain has not been added to MetaMask
           if (switchError.code === 4902) {
-            debugLog(
-              'Adding new chain to wallet',
-              { chainId: newChainId },
-              config.debug
-            )
+            debugLog('Adding new chain to wallet', { chainId: newChainId }, config.debug)
 
+            // Try to add the Ethereum chain
             await provider.request({
               method: 'wallet_addEthereumChain',
               params: [getAddEthereumChainParameters(newChainId)]
             })
 
+            // Verify chain was added
             const actualChainId = await getProviderChainId(provider)
             if (actualChainId !== newChainId) {
               console.warn('Chain ID not set after adding network')
               setChainId(ChainId.ETHEREUM_MAINNET)
             }
           } else {
+            // Unknown error, revert to default chain
             console.error('Error switching network:', switchError)
             setChainId(ChainId.ETHEREUM_MAINNET)
           }
@@ -135,26 +113,24 @@ export const AuthProvider: FC<AuthProviderProps> = ({
     [chainId, config.debug]
   )
 
+  // Initialize auth state on mount
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
         setIsConnecting(true)
         debugLog('Checking auth status', undefined, config.debug)
 
+        // Try to get the previous connection from decentraland-connect
         try {
-          const { account: walletAddress, chainId: connectedChainId } =
-            await connection.tryPreviousConnection()
+          const { account: walletAddress, chainId: connectedChainId } = await connection.tryPreviousConnection()
 
           if (walletAddress) {
-            debugLog(
-              'Previous connection found',
-              { address: walletAddress, chainId: connectedChainId },
-              config.debug
-            )
+            debugLog('Previous connection found', { address: walletAddress, chainId: connectedChainId }, config.debug)
 
             setWallet(walletAddress)
             setChainId(connectedChainId)
 
+            // Check identity inline to avoid dependency issues
             let isValidIdentity = false
             try {
               const identity = LocalStorageUtils.getIdentity(walletAddress)
@@ -165,11 +141,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({
                   debugLog('Identity valid', { expiration }, config.debug)
                   isValidIdentity = true
                 } else {
-                  debugLog(
-                    'Identity expired',
-                    { expiration, now },
-                    config.debug
-                  )
+                  debugLog('Identity expired', { expiration, now }, config.debug)
                 }
               } else {
                 debugLog('No identity found', undefined, config.debug)
@@ -180,13 +152,10 @@ export const AuthProvider: FC<AuthProviderProps> = ({
 
             setIsSignedIn(isValidIdentity)
 
+            // Fetch avatar inline if identity is valid
             if (isValidIdentity && config.fetchAvatar) {
               try {
-                debugLog(
-                  'Fetching avatar',
-                  { address: walletAddress },
-                  config.debug
-                )
+                debugLog('Fetching avatar', { address: walletAddress }, config.debug)
                 const avatarData = await config.fetchAvatar(walletAddress)
                 if (avatarData) {
                   setAvatar(avatarData)
@@ -212,6 +181,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({
     checkAuthStatus()
   }, [config.debug, config.fetchAvatar])
 
+  // Context value
   const contextValue: AuthContextValue = {
     wallet,
     avatar,
@@ -223,9 +193,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({
     changeNetwork
   }
 
-  return (
-    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = (_options?: UseAuthOptions): AuthContextValue => {
