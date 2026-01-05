@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       packageVersion:
-        description: 'NPM Version of the release (@dcl/jump-site)'
+        description: 'NPM Version of the release (@dcl-regenesislabs/mobile-hub)'
         required: true
         default: ''
       deploymentEnvironment:
@@ -35,11 +35,11 @@ jobs:
           sha: ${{ github.sha }}
 
           # CDN information
-          packageName: '@dcl/jump-site'
+          packageName: '@dcl-regenesislabs/mobile-hub'
           packageVersion: ${{ github.event.inputs.packageVersion }}
 
           # Rollout information
-          deploymentPath: 'jump'
+          deploymentPath: 'mobile-hub'
           deploymentEnvironment: ${{ github.event.inputs.deploymentEnvironment }}
           deploymentName: '_site'
           percentage: ${{ github.event.inputs.rolloutPercentage }}
