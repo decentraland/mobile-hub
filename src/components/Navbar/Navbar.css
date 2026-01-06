@@ -20,6 +20,10 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+.navbar-user-bar {
+  position: relative;
+}
+
 .navbar-spacer {
   flex: 1;
   min-width: 16px;
@@ -106,7 +110,7 @@
 .navbar-menu {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
+  right: 0;
   min-width: 160px;
   background: rgba(28, 28, 32, 0.95);
   border-radius: 12px;
