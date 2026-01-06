@@ -2,18 +2,21 @@ import { useCallback, useState } from 'react';
 import { MapProvider } from '../context/MapContext';
 import { GroupsProvider } from '../context/GroupsContext';
 import { useGroupsState, useGroupsDispatch, useGroupsApi } from '../context/useGroupsHooks';
-import { useBansApi } from '../context/useBansHooks';
+import { useMapDispatch } from '../context/useMapHooks';
+import { useBansApi, useBansState } from '../context/useBansHooks';
 import { MapCanvas } from './MapCanvas';
 import { MapControls } from './MapControls';
 import { CoordinateDisplay } from './CoordinateDisplay';
 import { SelectionOverlay } from './SelectionOverlay';
 import { GroupsOverlay } from './GroupsOverlay';
 import { GroupsSidebar } from './GroupsSidebar';
+import { BannedScenesSidebar } from './BannedScenesSidebar';
 import { FloatingActionButton } from './FloatingActionButton';
 import { SceneDetailSidebar } from './SceneDetailSidebar';
 import { SceneHighlightOverlay } from './SceneHighlightOverlay';
 import styles from '../styles/MapView.module.css';
 import type { ParcelCoord, SceneGroup } from '../types';
+import type { Ban } from '../api/bansApi';
 
 interface MapViewProps {
   initialCenter?: ParcelCoord;
@@ -33,12 +36,15 @@ type SidebarMode = 'list' | 'create' | 'edit';
 function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoord) => void }) {
   const { groups, sidebarOpen } = useGroupsState();
   const groupsDispatch = useGroupsDispatch();
+  const mapDispatch = useMapDispatch();
   const { updateGroup, deleteGroup } = useGroupsApi();
   const { checkGroupBanned, checkSceneBanned, toggleBan } = useBansApi();
+  const { bans } = useBansState();
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('view');
   const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
   const [highlightedParcels, setHighlightedParcels] = useState<ParcelCoord[]>([]);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('list');
+  const [bansSidebarOpen, setBansSidebarOpen] = useState(false);
 
   // Find which group a parcel belongs to
   const findGroupByParcel = useCallback(
@@ -89,13 +95,53 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
   );
 
   const handleLayersClick = () => {
-    // Close detail sidebar if open
+    // Close detail sidebar and bans sidebar if open
     setSelectedItem(null);
     setHighlightedParcels([]);
+    setBansSidebarOpen(false);
     // Reset to list mode and toggle the groups sidebar
     setSidebarMode('list');
     groupsDispatch({ type: 'TOGGLE_SIDEBAR' });
   };
+
+  const handleBansClick = () => {
+    // Close detail sidebar and groups sidebar if open
+    setSelectedItem(null);
+    setHighlightedParcels([]);
+    groupsDispatch({ type: 'SET_SIDEBAR_OPEN', payload: false });
+    // Toggle the bans sidebar
+    setBansSidebarOpen(!bansSidebarOpen);
+  };
+
+  const handleCloseBansSidebar = () => {
+    setBansSidebarOpen(false);
+  };
+
+  const handleBanClick = useCallback((ban: Ban) => {
+    // Skip world bans - they don't have parcel coordinates
+    if (ban.worldName) return;
+
+    // For group bans, find the group and center on its first parcel
+    if (ban.groupId) {
+      const group = groups.find(g => g.id === ban.groupId);
+      if (group && group.parcels.length > 0) {
+        // Calculate center of the group's parcels
+        const avgX = group.parcels.reduce((sum, p) => sum + p.x, 0) / group.parcels.length;
+        const avgY = group.parcels.reduce((sum, p) => sum + p.y, 0) / group.parcels.length;
+        mapDispatch({ type: 'SET_CENTER', payload: { x: avgX, y: avgY } });
+        mapDispatch({ type: 'SET_ZOOM', payload: 8 });
+      }
+      return;
+    }
+
+    // For scene bans, center on the parcels
+    if (ban.parcels.length > 0) {
+      const avgX = ban.parcels.reduce((sum, p) => sum + p.x, 0) / ban.parcels.length;
+      const avgY = ban.parcels.reduce((sum, p) => sum + p.y, 0) / ban.parcels.length;
+      mapDispatch({ type: 'SET_CENTER', payload: { x: avgX, y: avgY } });
+      mapDispatch({ type: 'SET_ZOOM', payload: 8 });
+    }
+  }, [groups, mapDispatch]);
 
   const handleCloseDetailSidebar = () => {
     setSelectedItem(null);
@@ -247,9 +293,16 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
           existingGroups={groups}
         />
       )}
+      <BannedScenesSidebar
+        isOpen={bansSidebarOpen}
+        onClose={handleCloseBansSidebar}
+        onBanClick={handleBanClick}
+      />
       <FloatingActionButton
-        onClick={handleLayersClick}
+        onGroupsClick={handleLayersClick}
+        onBansClick={handleBansClick}
         groupCount={groups.length}
+        banCount={bans.filter(b => !b.worldName).length}
       />
     </div>
   );

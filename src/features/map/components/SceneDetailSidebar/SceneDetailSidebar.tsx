@@ -283,7 +283,7 @@ export const SceneDetailSidebar: FC<SceneDetailSidebarProps> = ({
               <div className={styles.field}>
                 <label className={styles.label}>Deployed</label>
                 <div className={styles.valueSmall}>
-                  {sceneInfo.deployedAt.toLocaleDateString()}
+                  {sceneInfo.deployedAt.toLocaleDateString('en-GB')}
                 </div>
               </div>
             )}

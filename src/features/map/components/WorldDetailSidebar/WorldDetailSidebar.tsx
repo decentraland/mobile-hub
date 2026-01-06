@@ -137,7 +137,7 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
             <div className={styles.field}>
               <label className={styles.label}>Banned On</label>
               <div className={styles.valueSmall}>
-                {new Date(ban.createdAt).toLocaleDateString()} at {new Date(ban.createdAt).toLocaleTimeString()}
+                {new Date(ban.createdAt).toLocaleDateString('en-GB')} at {new Date(ban.createdAt).toLocaleTimeString()}
               </div>
             </div>
             {ban.createdBy && (

@@ -154,7 +154,7 @@ export const WorldsPage: FC = () => {
                     <div className="world-card-reason">{ban.reason}</div>
                   )}
                   <div className="world-card-date">
-                    Banned: {new Date(ban.createdAt).toLocaleDateString()}
+                    Banned: {new Date(ban.createdAt).toLocaleDateString('en-GB')}
                   </div>
                 </div>
               ))}
