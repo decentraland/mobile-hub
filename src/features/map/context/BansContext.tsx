@@ -70,12 +70,12 @@ interface BansContextValue {
   // API functions
   banGroup: (group: SceneGroup, reason?: string) => Promise<void>
   unbanGroup: (group: SceneGroup) => Promise<void>
-  banScene: (parcels: ParcelCoord[], reason?: string) => Promise<void>
+  banScene: (parcels: ParcelCoord[], sceneId?: string, reason?: string) => Promise<void>
   unbanScene: (parcels: ParcelCoord[]) => Promise<void>
   banWorld: (worldName: string, sceneId?: string, reason?: string) => Promise<void>
   unbanWorld: (worldName: string) => Promise<void>
   // Combined function for UI
-  toggleBan: (targetGroup?: SceneGroup, parcels?: ParcelCoord[], shouldBan?: boolean) => Promise<void>
+  toggleBan: (targetGroup?: SceneGroup, parcels?: ParcelCoord[], shouldBan?: boolean, sceneId?: string) => Promise<void>
   refreshBans: () => Promise<void>
 }
 
@@ -159,11 +159,11 @@ export function BansProvider({ children }: BansProviderProps) {
   }, [authenticatedFetch, state.bans])
 
   // Ban a scene
-  const banScene = useCallback(async (parcels: ParcelCoord[], reason?: string) => {
+  const banScene = useCallback(async (parcels: ParcelCoord[], sceneId?: string, reason?: string) => {
     if (parcels.length === 0) return
 
     try {
-      const ban = await createSceneBan(authenticatedFetch, { parcels, reason })
+      const ban = await createSceneBan(authenticatedFetch, { parcels, sceneId, reason })
       dispatch({ type: 'ADD_BAN', payload: ban })
     } catch (err) {
       console.error('Failed to ban scene:', err)
@@ -211,7 +211,7 @@ export function BansProvider({ children }: BansProviderProps) {
   }, [authenticatedFetch, state.bans])
 
   // Combined toggle function for UI components
-  const toggleBan = useCallback(async (targetGroup?: SceneGroup, parcels?: ParcelCoord[], shouldBan?: boolean) => {
+  const toggleBan = useCallback(async (targetGroup?: SceneGroup, parcels?: ParcelCoord[], shouldBan?: boolean, sceneId?: string) => {
     if (targetGroup) {
       // Handle group ban/unban
       const isBanned = checkGroupBanned(targetGroup.id)
@@ -228,7 +228,7 @@ export function BansProvider({ children }: BansProviderProps) {
       const newBanState = shouldBan ?? !isBanned
 
       if (newBanState && !isBanned) {
-        await banScene(parcels)
+        await banScene(parcels, sceneId)
       } else if (!newBanState && isBanned) {
         await unbanScene(parcels)
       }

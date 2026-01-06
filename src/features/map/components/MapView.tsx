@@ -79,9 +79,9 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
   }, [getGroupBan, getSceneBan]);
 
   // Handle ban toggle (wrapper for SceneDetailSidebar)
-  const handleBanToggle = useCallback(async (shouldBan: boolean, targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => {
+  const handleBanToggle = useCallback(async (shouldBan: boolean, targetGroup?: SceneGroup, parcels?: ParcelCoord[], sceneId?: string) => {
     try {
-      await toggleBan(targetGroup, parcels, shouldBan);
+      await toggleBan(targetGroup, parcels, shouldBan, sceneId);
     } catch (err) {
       console.error('Failed to toggle ban:', err);
     }

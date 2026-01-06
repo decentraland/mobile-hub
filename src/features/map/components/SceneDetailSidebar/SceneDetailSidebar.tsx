@@ -11,7 +11,7 @@ interface SceneDetailSidebarProps {
   parcel?: ParcelCoord
   group?: SceneGroup
   onClose: () => void
-  onBanToggle?: (isBanned: boolean, targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => void
+  onBanToggle?: (isBanned: boolean, targetGroup?: SceneGroup, parcels?: ParcelCoord[], sceneId?: string) => void
   checkIsBanned?: (targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => boolean
   getBanInfo?: (targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => Ban | undefined
   onSceneLoaded?: (parcels: ParcelCoord[]) => void
@@ -132,7 +132,7 @@ export const SceneDetailSidebar: FC<SceneDetailSidebarProps> = ({
   }, [ban?.sceneId, sceneInfo?.entityId])
 
   const handleBanClick = () => {
-    onBanToggle?.(!isBanned, targetGroup, sceneParcels)
+    onBanToggle?.(!isBanned, targetGroup, sceneParcels, sceneInfo?.entityId)
   }
 
   const handleRemoveFromGroup = () => {
