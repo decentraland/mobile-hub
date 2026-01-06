@@ -64,6 +64,8 @@ interface BansContextValue {
   checkSceneBanned: (parcels: ParcelCoord[]) => boolean
   checkWorldBanned: (worldName: string) => boolean
   // Get ban info functions
+  getGroupBan: (groupId: string) => Ban | undefined
+  getSceneBan: (parcels: ParcelCoord[]) => Ban | undefined
   getWorldBan: (worldName: string) => Ban | undefined
   // API functions
   banGroup: (group: SceneGroup, reason?: string) => Promise<void>
@@ -118,7 +120,15 @@ export function BansProvider({ children }: BansProviderProps) {
     return isWorldBanned(state.bans, worldName)
   }, [state.bans])
 
-  // Get ban info for a world
+  // Get ban info functions
+  const getGroupBan = useCallback((groupId: string): Ban | undefined => {
+    return getBanForGroup(state.bans, groupId)
+  }, [state.bans])
+
+  const getSceneBan = useCallback((parcels: ParcelCoord[]): Ban | undefined => {
+    return getBanForScene(state.bans, parcels)
+  }, [state.bans])
+
   const getWorldBan = useCallback((worldName: string): Ban | undefined => {
     return getBanForWorld(state.bans, worldName)
   }, [state.bans])
@@ -230,6 +240,8 @@ export function BansProvider({ children }: BansProviderProps) {
     checkGroupBanned,
     checkSceneBanned,
     checkWorldBanned,
+    getGroupBan,
+    getSceneBan,
     getWorldBan,
     banGroup,
     unbanGroup,

@@ -38,7 +38,7 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
   const groupsDispatch = useGroupsDispatch();
   const mapDispatch = useMapDispatch();
   const { updateGroup, deleteGroup } = useGroupsApi();
-  const { checkGroupBanned, checkSceneBanned, toggleBan } = useBansApi();
+  const { checkGroupBanned, checkSceneBanned, getGroupBan, getSceneBan, toggleBan } = useBansApi();
   const { bans } = useBansState();
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('view');
   const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
@@ -66,6 +66,17 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
     }
     return false;
   }, [checkGroupBanned, checkSceneBanned]);
+
+  // Get ban info for a group or scene (wrapper for SceneDetailSidebar)
+  const getBanInfo = useCallback((targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => {
+    if (targetGroup) {
+      return getGroupBan(targetGroup.id);
+    }
+    if (parcels && parcels.length > 0) {
+      return getSceneBan(parcels);
+    }
+    return undefined;
+  }, [getGroupBan, getSceneBan]);
 
   // Handle ban toggle (wrapper for SceneDetailSidebar)
   const handleBanToggle = useCallback(async (shouldBan: boolean, targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => {
@@ -284,6 +295,7 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
           group={selectedItem.group}
           onClose={handleCloseDetailSidebar}
           checkIsBanned={checkIsBanned}
+          getBanInfo={getBanInfo}
           onBanToggle={handleBanToggle}
           onSceneLoaded={handleSceneLoaded}
           onCreateGroup={handleCreateGroupFromScene}
