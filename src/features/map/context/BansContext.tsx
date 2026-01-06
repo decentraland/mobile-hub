@@ -1,4 +1,5 @@
 import { createContext, useReducer, useEffect, useCallback, type ReactNode } from 'react'
+import { useAuth } from '../../../contexts/auth'
 import { useAuthenticatedFetch } from '../../../hooks/useAuthenticatedFetch'
 import {
   fetchAllBans,
@@ -89,10 +90,15 @@ interface BansProviderProps {
 
 export function BansProvider({ children }: BansProviderProps) {
   const [state, dispatch] = useReducer(bansReducer, initialState)
+  const { isSignedIn } = useAuth()
   const authenticatedFetch = useAuthenticatedFetch()
 
-  // Fetch bans on mount
+  // Fetch bans only when signed in
   const refreshBans = useCallback(async () => {
+    if (!isSignedIn) {
+      dispatch({ type: 'SET_BANS', payload: [] })
+      return
+    }
     dispatch({ type: 'SET_LOADING', payload: true })
     try {
       const bans = await fetchAllBans(authenticatedFetch)
@@ -101,7 +107,7 @@ export function BansProvider({ children }: BansProviderProps) {
       console.error('Failed to fetch bans:', err)
       dispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err.message : 'Failed to fetch bans' })
     }
-  }, [authenticatedFetch])
+  }, [authenticatedFetch, isSignedIn])
 
   useEffect(() => {
     refreshBans()
