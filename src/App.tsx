@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { ChainId } from '@dcl/schemas'
 import { AuthProvider } from './contexts/auth'
+import { BansProvider } from './features/map/context/BansContext'
 import { Navbar } from './components/Navbar'
 import { AppTabs, type AppView } from './components/AppTabs'
 import { MapPage } from './pages/MapPage'
@@ -21,10 +22,12 @@ function App() {
   return (
     <BrowserRouter basename={basename}>
       <AuthProvider config={authConfig}>
-        <Navbar
-          tabs={<AppTabs activeView={activeView} onViewChange={setActiveView} />}
-        />
-        {activeView === 'map' ? <MapPage /> : <WorldsPage />}
+        <BansProvider>
+          <Navbar
+            tabs={<AppTabs activeView={activeView} onViewChange={setActiveView} />}
+          />
+          {activeView === 'map' ? <MapPage /> : <WorldsPage />}
+        </BansProvider>
       </AuthProvider>
     </BrowserRouter>
   )

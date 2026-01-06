@@ -49,26 +49,48 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+.worlds-search-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .worlds-search-button {
   padding: 12px 24px;
   border: none;
   border-radius: 8px;
-  background: #FF4444;
-  color: white;
+  background: #00D9FF;
+  color: #1a1a1a;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.worlds-search-button:hover {
-  background: #FF5555;
+.worlds-search-button:hover:not(:disabled) {
+  background: #33E1FF;
 }
 
-.worlds-search-button:active {
-  background: #EE3333;
+.worlds-search-button:active:not(:disabled) {
+  background: #00C4E8;
 }
 
+.worlds-search-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Error message */
+.worlds-error {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #FF6B6B;
+  font-size: 14px;
+}
+
+/* Banned worlds list */
 .worlds-list-section h3 {
   color: rgba(255, 255, 255, 0.9);
   font-size: 16px;
@@ -98,34 +120,33 @@
   background: rgba(255, 68, 68, 0.1);
   border: 1px solid rgba(255, 68, 68, 0.2);
   border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.world-card:hover {
+  background: rgba(255, 68, 68, 0.15);
+  border-color: rgba(255, 68, 68, 0.3);
+  transform: translateY(-2px);
 }
 
 .world-card-name {
   color: rgba(255, 255, 255, 0.9);
   font-size: 14px;
   font-weight: 500;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   word-break: break-all;
+  font-family: monospace;
+}
+
+.world-card-reason {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  margin-bottom: 8px;
+  font-style: italic;
 }
 
 .world-card-date {
   color: rgba(255, 255, 255, 0.4);
   font-size: 12px;
-  margin-bottom: 12px;
-}
-
-.world-card-unban {
-  padding: 8px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.world-card-unban:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
 }

@@ -10,7 +10,7 @@
 
 .controls {
   position: absolute;
-  bottom: 100px;
+  bottom: 24px;
   right: 24px;
   display: flex;
   flex-direction: column;
@@ -44,8 +44,8 @@
 
 .coordinateDisplay {
   position: absolute;
-  bottom: 80px;
-  left: 24px;
+  bottom: 24px;
+  left: 88px;
   padding: 8px 16px;
   background: rgba(0, 0, 0, 0.7);
   border-radius: 4px;

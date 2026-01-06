@@ -3,6 +3,5 @@
   "ENVIRONMENT": "development",
   "AUTH_URL": "https://decentraland.zone/auth",
   "PEER_URL": "https://peer.decentraland.zone",
-  "MOBILE_BFF_URL": "https://mobile-bff.decentraland.zone",
-  "USE_DEV_IDENTITY": "true"
+  "MOBILE_BFF_URL": "http://localhost:3000"
 }

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import type { FC } from 'react'
 import type { ParcelCoord, SceneGroup } from '../../types'
+import type { Ban } from '../../api/bansApi'
 import { fetchSceneByParcel, getParcelRangeString, type SceneInfo } from '../../api/sceneApi'
 import styles from './SceneDetailSidebar.module.css'
 
@@ -12,6 +13,7 @@ interface SceneDetailSidebarProps {
   onClose: () => void
   onBanToggle?: (isBanned: boolean, targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => void
   checkIsBanned?: (targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => boolean
+  getBanInfo?: (targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => Ban | undefined
   onSceneLoaded?: (parcels: ParcelCoord[]) => void
   onCreateGroup?: (parcels: ParcelCoord[], name: string) => void
   onAddToGroup?: (parcels: ParcelCoord[], groupId: string) => void
@@ -26,6 +28,7 @@ export const SceneDetailSidebar: FC<SceneDetailSidebarProps> = ({
   onClose,
   onBanToggle,
   checkIsBanned,
+  getBanInfo,
   onSceneLoaded,
   onCreateGroup,
   onAddToGroup,
@@ -120,6 +123,13 @@ export const SceneDetailSidebar: FC<SceneDetailSidebarProps> = ({
   const targetGroup = group || parcelGroupInfo.belongsToGroup || undefined
   const sceneParcels = sceneInfo?.parcels || (parcel ? [parcel] : [])
   const isBanned = checkIsBanned?.(targetGroup, sceneParcels) ?? false
+  const ban = getBanInfo?.(targetGroup, sceneParcels)
+
+  // Check if scene has been redeployed since the ban
+  const isRedeployed = useMemo(() => {
+    if (!ban?.sceneId || !sceneInfo?.entityId) return false
+    return ban.sceneId !== sceneInfo.entityId
+  }, [ban?.sceneId, sceneInfo?.entityId])
 
   const handleBanClick = () => {
     onBanToggle?.(!isBanned, targetGroup, sceneParcels)
@@ -283,8 +293,38 @@ export const SceneDetailSidebar: FC<SceneDetailSidebarProps> = ({
               <div className={styles.field}>
                 <label className={styles.label}>Deployed</label>
                 <div className={styles.valueSmall}>
-                  {sceneInfo.deployedAt.toLocaleDateString()}
+                  {sceneInfo.deployedAt.toLocaleDateString('en-GB')}
                 </div>
+              </div>
+            )}
+
+            {/* Ban Info (if banned) */}
+            {isBanned && ban && (
+              <div className={styles.banInfo}>
+                <div className={styles.banInfoHeader}>Ban Details</div>
+                {ban.reason && (
+                  <div className={styles.field}>
+                    <label className={styles.label}>Reason</label>
+                    <div className={styles.valueSmall}>{ban.reason}</div>
+                  </div>
+                )}
+                <div className={styles.field}>
+                  <label className={styles.label}>Banned On</label>
+                  <div className={styles.valueSmall}>
+                    {new Date(ban.createdAt).toLocaleDateString('en-GB')} at {new Date(ban.createdAt).toLocaleTimeString()}
+                  </div>
+                </div>
+                {ban.createdBy && (
+                  <div className={styles.field}>
+                    <label className={styles.label}>Banned By</label>
+                    <div className={styles.valueSmall}>{ban.createdBy}</div>
+                  </div>
+                )}
+                {isRedeployed && (
+                  <div className={styles.redeployWarning}>
+                    Scene has been re-deployed since ban
+                  </div>
+                )}
               </div>
             )}
           </>

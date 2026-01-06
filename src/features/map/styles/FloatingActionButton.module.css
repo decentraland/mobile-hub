@@ -1,7 +1,14 @@
-.fab {
+.fabContainer {
   position: absolute;
   bottom: 24px;
   left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 50;
+}
+
+.fab {
   width: 48px;
   height: 48px;
   border-radius: 12px;
@@ -14,7 +21,7 @@
   justify-content: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   transition: all 0.2s ease;
-  z-index: 50;
+  position: relative;
 }
 
 .fab:hover {
@@ -52,4 +59,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.badgeBanned {
+  background: #FF4444;
+  color: white;
+}
+
+.fabBanned {
+  border: 1px solid rgba(255, 68, 68, 0.3);
+}
+
+.fabBanned:hover {
+  background: rgba(255, 68, 68, 0.2);
 }

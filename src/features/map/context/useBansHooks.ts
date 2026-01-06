@@ -18,10 +18,16 @@ export function useBansApi() {
   const {
     checkGroupBanned,
     checkSceneBanned,
+    checkWorldBanned,
+    getGroupBan,
+    getSceneBan,
+    getWorldBan,
     banGroup,
     unbanGroup,
     banScene,
     unbanScene,
+    banWorld,
+    unbanWorld,
     toggleBan,
     refreshBans,
   } = useBans()
@@ -29,10 +35,16 @@ export function useBansApi() {
   return {
     checkGroupBanned,
     checkSceneBanned,
+    checkWorldBanned,
+    getGroupBan,
+    getSceneBan,
+    getWorldBan,
     banGroup,
     unbanGroup,
     banScene,
     unbanScene,
+    banWorld,
+    unbanWorld,
     toggleBan,
     refreshBans,
   }
