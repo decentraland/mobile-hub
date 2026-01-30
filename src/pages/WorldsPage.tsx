@@ -1,7 +1,11 @@
-import { useState, type FC, type FormEvent } from 'react'
+import { useState, useCallback, type FC, type FormEvent } from 'react'
 import { useBans, useBansState } from '../features/map/context/useBansHooks'
 import { fetchWorldInfo, type WorldInfo } from '../features/map/api/worldsApi'
 import { WorldDetailSidebar } from '../features/map/components/WorldDetailSidebar'
+import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
+import { createSceneGroup, updateSceneGroup, fetchSceneGroupByWorldName } from '../features/map/api/sceneGroupsApi'
+import type { SceneGroup } from '../features/map/types'
+import { GROUP_COLORS } from '../features/map/utils/groupUtils'
 import './WorldsPage.css'
 
 export const WorldsPage: FC = () => {
@@ -10,9 +14,11 @@ export const WorldsPage: FC = () => {
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [isBanning, setIsBanning] = useState(false)
+  const [worldGroup, setWorldGroup] = useState<SceneGroup | null>(null)
 
   const { banWorld, unbanWorld, checkWorldBanned, getWorldBan } = useBans()
   const { bans } = useBansState()
+  const authenticatedFetch = useAuthenticatedFetch()
 
   // Filter world bans only
   const worldBans = bans.filter(ban => ban.worldName !== null)
@@ -31,6 +37,13 @@ export const WorldsPage: FC = () => {
         ...info,
         isBanned: checkWorldBanned(info.name)
       })
+      // Fetch the world's group if it exists
+      try {
+        const group = await fetchSceneGroupByWorldName(authenticatedFetch, info.name)
+        setWorldGroup(group)
+      } catch {
+        setWorldGroup(null)
+      }
     } catch (err) {
       setSearchError(err instanceof Error ? err.message : 'Failed to fetch world info')
     } finally {
@@ -63,6 +76,7 @@ export const WorldsPage: FC = () => {
 
   const handleCloseSidebar = () => {
     setSelectedWorld(null)
+    setWorldGroup(null)
     setSearchValue('')
     setSearchError(null)
   }
@@ -78,6 +92,13 @@ export const WorldsPage: FC = () => {
         ...info,
         isBanned: checkWorldBanned(info.name)
       })
+      // Fetch the world's group if it exists
+      try {
+        const group = await fetchSceneGroupByWorldName(authenticatedFetch, info.name)
+        setWorldGroup(group)
+      } catch {
+        setWorldGroup(null)
+      }
     } catch (err) {
       // If we can't fetch info, create a minimal WorldInfo from the ban
       // This can happen if the world was deleted after being banned
@@ -96,6 +117,13 @@ export const WorldsPage: FC = () => {
           banReason: ban.reason || null,
           banSceneId: ban.sceneId
         })
+        // Also try to fetch group for banned worlds
+        try {
+          const group = await fetchSceneGroupByWorldName(authenticatedFetch, worldName)
+          setWorldGroup(group)
+        } catch {
+          setWorldGroup(null)
+        }
       } else {
         setSearchError(err instanceof Error ? err.message : 'Failed to fetch world info')
       }
@@ -106,6 +134,30 @@ export const WorldsPage: FC = () => {
 
   // Get ban info for the selected world
   const selectedWorldBan = selectedWorld ? getWorldBan(selectedWorld.name) : undefined
+
+  // Handle updating tags for an existing world group
+  const handleUpdateWorldTags = useCallback(async (worldName: string, tags: string[]) => {
+    if (!worldGroup) return
+    await updateSceneGroup(authenticatedFetch, worldGroup.id, { tags })
+    setWorldGroup(prev => prev ? { ...prev, tags } : null)
+  }, [authenticatedFetch, worldGroup])
+
+  // Handle creating a new group for a world with tags
+  const handleCreateWorldGroup = useCallback(async (
+    worldName: string,
+    name: string,
+    tags: string[]
+  ): Promise<SceneGroup | null> => {
+    const color = GROUP_COLORS[0] // Default color for worlds
+    const newGroup = await createSceneGroup(authenticatedFetch, {
+      name,
+      worldName,
+      tags,
+      color,
+    })
+    setWorldGroup(newGroup)
+    return newGroup
+  }, [authenticatedFetch])
 
   return (
     <div className="worlds-page">
@@ -167,9 +219,12 @@ export const WorldsPage: FC = () => {
         <WorldDetailSidebar
           world={selectedWorld}
           ban={selectedWorldBan}
+          worldGroup={worldGroup}
           onClose={handleCloseSidebar}
           onBanToggle={handleBanToggle}
           isBanning={isBanning}
+          onUpdateWorldTags={handleUpdateWorldTags}
+          onCreateWorldGroup={handleCreateWorldGroup}
         />
       )}
     </div>

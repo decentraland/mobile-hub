@@ -48,6 +48,14 @@ export interface TileLoadState {
   image?: HTMLImageElement;
 }
 
+// Tags type
+export interface Tag {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: number;
+}
+
 // Scene Groups Types
 export interface SceneGroup {
   id: string;
@@ -56,6 +64,7 @@ export interface SceneGroup {
   color: string;
   tags: string[];
   parcels: ParcelCoord[];
+  worldName: string | null;
   createdAt: number;
   updatedAt: number;
 }

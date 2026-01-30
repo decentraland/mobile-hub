@@ -4,6 +4,7 @@ import type { FC } from 'react'
 import type { ParcelCoord, SceneGroup } from '../../types'
 import type { Ban } from '../../api/bansApi'
 import { fetchSceneByParcel, getParcelRangeString, type SceneInfo } from '../../api/sceneApi'
+import { TagEditor } from '../../../curation'
 import styles from './SceneDetailSidebar.module.css'
 
 interface SceneDetailSidebarProps {
@@ -19,6 +20,8 @@ interface SceneDetailSidebarProps {
   onAddToGroup?: (parcels: ParcelCoord[], groupId: string) => void
   onRemoveFromGroup?: (parcels: ParcelCoord[], groupId: string) => void
   onViewGroup?: (group: SceneGroup) => void
+  onUpdateGroupTags?: (groupId: string, tags: string[]) => Promise<void>
+  onCreateGroupWithTags?: (parcels: ParcelCoord[], name: string, tags: string[]) => Promise<SceneGroup | null>
   existingGroups?: SceneGroup[]
 }
 
@@ -34,12 +37,17 @@ export const SceneDetailSidebar: FC<SceneDetailSidebarProps> = ({
   onAddToGroup,
   onRemoveFromGroup,
   onViewGroup,
+  onUpdateGroupTags,
+  onCreateGroupWithTags,
   existingGroups = []
 }) => {
   const [sceneInfo, setSceneInfo] = useState<SceneInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedGroupId, setSelectedGroupId] = useState<string>('new')
+  const [editingTags, setEditingTags] = useState<string[]>([])
+  const [isSavingTags, setIsSavingTags] = useState(false)
+  const [showTagEditor, setShowTagEditor] = useState(false)
 
   // Handle Escape key to close sidebar
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -154,6 +162,47 @@ export const SceneDetailSidebar: FC<SceneDetailSidebarProps> = ({
       onAddToGroup?.(sceneInfo.parcels, selectedGroupId)
     }
   }
+
+  // Initialize editing tags when group changes or tag editor opens
+  useEffect(() => {
+    if (showTagEditor) {
+      const currentGroup = group || parcelGroupInfo.belongsToGroup
+      setEditingTags(currentGroup?.tags || [])
+    }
+  }, [showTagEditor, group, parcelGroupInfo.belongsToGroup])
+
+  const handleSaveTags = async () => {
+    const currentGroup = group || parcelGroupInfo.belongsToGroup
+
+    if (currentGroup) {
+      // Update existing group's tags
+      if (onUpdateGroupTags) {
+        setIsSavingTags(true)
+        try {
+          await onUpdateGroupTags(currentGroup.id, editingTags)
+          setShowTagEditor(false)
+        } catch (err) {
+          console.error('Failed to update tags:', err)
+        } finally {
+          setIsSavingTags(false)
+        }
+      }
+    } else if (sceneInfo?.parcels && sceneInfo.parcels.length > 0 && onCreateGroupWithTags) {
+      // Create new group with tags (single parcel scene)
+      setIsSavingTags(true)
+      try {
+        await onCreateGroupWithTags(sceneInfo.parcels, sceneInfo.name || `Scene at ${sceneInfo.parcels[0].x},${sceneInfo.parcels[0].y}`, editingTags)
+        setShowTagEditor(false)
+      } catch (err) {
+        console.error('Failed to create group with tags:', err)
+      } finally {
+        setIsSavingTags(false)
+      }
+    }
+  }
+
+  const canEditTags = (onUpdateGroupTags && (group || parcelGroupInfo.belongsToGroup)) ||
+    (onCreateGroupWithTags && sceneInfo?.parcels && sceneInfo.parcels.length > 0 && !parcelGroupInfo.belongsToGroup)
 
   // Check if any parcel already belongs to a group
   const parcelsAlreadyInGroup = parcelGroupInfo.belongsToGroup !== null
@@ -285,6 +334,58 @@ export const SceneDetailSidebar: FC<SceneDetailSidebarProps> = ({
                 >
                   {group?.name || parcelGroupInfo.belongsToGroup?.name}
                 </button>
+              </div>
+            )}
+
+            {/* Curation Tags Section */}
+            {canEditTags && !hasNoScene && (
+              <div className={styles.field}>
+                <label className={styles.label}>
+                  Tags
+                  {!showTagEditor && (
+                    <button
+                      className={styles.editTagsButton}
+                      onClick={() => setShowTagEditor(true)}
+                    >
+                      Edit
+                    </button>
+                  )}
+                </label>
+                {showTagEditor ? (
+                  <div className={styles.tagEditorContainer}>
+                    <TagEditor
+                      tags={editingTags}
+                      onChange={setEditingTags}
+                      disabled={isSavingTags}
+                    />
+                    <div className={styles.tagEditorActions}>
+                      <button
+                        className={styles.tagEditorCancel}
+                        onClick={() => setShowTagEditor(false)}
+                        disabled={isSavingTags}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className={styles.tagEditorSave}
+                        onClick={handleSaveTags}
+                        disabled={isSavingTags}
+                      >
+                        {isSavingTags ? 'Saving...' : 'Save Tags'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.tags}>
+                    {(group?.tags || parcelGroupInfo.belongsToGroup?.tags || []).length > 0 ? (
+                      (group?.tags || parcelGroupInfo.belongsToGroup?.tags || []).map(tag => (
+                        <span key={tag} className={styles.tag}>{tag}</span>
+                      ))
+                    ) : (
+                      <span className={styles.noTags}>No tags</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

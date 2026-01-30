@@ -4,6 +4,7 @@ import { GroupsProvider } from '../context/GroupsContext';
 import { useGroupsState, useGroupsDispatch, useGroupsApi } from '../context/useGroupsHooks';
 import { useMapDispatch } from '../context/useMapHooks';
 import { useBansApi, useBansState } from '../context/useBansHooks';
+import { getNextColor } from '../utils/groupUtils';
 import { MapCanvas } from './MapCanvas';
 import { MapControls } from './MapControls';
 import { CoordinateDisplay } from './CoordinateDisplay';
@@ -37,7 +38,7 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
   const { groups, sidebarOpen } = useGroupsState();
   const groupsDispatch = useGroupsDispatch();
   const mapDispatch = useMapDispatch();
-  const { updateGroup, deleteGroup } = useGroupsApi();
+  const { updateGroup, deleteGroup, createGroup } = useGroupsApi();
   const { checkGroupBanned, checkSceneBanned, getGroupBan, getSceneBan, toggleBan } = useBansApi();
   const { bans } = useBansState();
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('view');
@@ -251,6 +252,30 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
     groupsDispatch({ type: 'SET_SIDEBAR_OPEN', payload: true });
   }, [groupsDispatch]);
 
+  // Handle updating tags for an existing group
+  const handleUpdateGroupTags = useCallback(async (groupId: string, tags: string[]) => {
+    await updateGroup(groupId, { tags });
+  }, [updateGroup]);
+
+  // Handle creating a new group with tags from the scene detail sidebar
+  const handleCreateGroupWithTags = useCallback(async (
+    parcels: ParcelCoord[],
+    name: string,
+    tags: string[]
+  ): Promise<SceneGroup | null> => {
+    const color = getNextColor(groups);
+    const newGroup = await createGroup({
+      name,
+      parcels,
+      tags,
+      color,
+    });
+    if (selectedItem && newGroup) {
+      setSelectedItem({ ...selectedItem, group: newGroup });
+    }
+    return newGroup;
+  }, [createGroup, groups, selectedItem]);
+
   // Check if a group is banned (simplified for GroupsSidebar)
   const checkGroupIsBanned = useCallback((group: SceneGroup): boolean => {
     return checkGroupBanned(group.id);
@@ -303,6 +328,8 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
           onRemoveFromGroup={handleRemoveFromGroup}
           onViewGroup={handleViewGroup}
           existingGroups={groups}
+          onUpdateGroupTags={handleUpdateGroupTags}
+          onCreateGroupWithTags={handleCreateGroupWithTags}
         />
       )}
       <BannedScenesSidebar

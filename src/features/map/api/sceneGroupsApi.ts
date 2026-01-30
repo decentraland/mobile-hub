@@ -1,5 +1,5 @@
 import { config } from '../../../config'
-import type { SceneGroup, ParcelCoord } from '../types'
+import type { SceneGroup, ParcelCoord, Tag } from '../types'
 
 const API_BASE = config.get('MOBILE_BFF_URL')
 
@@ -8,7 +8,8 @@ export interface CreateSceneGroupInput {
   description?: string
   color: string
   tags?: string[]
-  parcels: ParcelCoord[]
+  parcels?: ParcelCoord[]
+  worldName?: string
 }
 
 export interface UpdateSceneGroupInput {
@@ -17,6 +18,7 @@ export interface UpdateSceneGroupInput {
   color?: string
   tags?: string[]
   parcels?: ParcelCoord[]
+  worldName?: string | null
 }
 
 // Backend response types
@@ -27,8 +29,16 @@ interface ApiSceneGroup {
   color: string
   tags: string[]
   parcels: ParcelCoord[]
+  worldName: string | null
   createdAt: string
   updatedAt: string
+}
+
+interface ApiTag {
+  id: string
+  name: string
+  description: string | null
+  createdAt: string
 }
 
 interface ApiResponse<T> {
@@ -45,8 +55,18 @@ function transformSceneGroup(data: ApiSceneGroup): SceneGroup {
     color: data.color,
     tags: data.tags || [],
     parcels: data.parcels || [],
+    worldName: data.worldName,
     createdAt: new Date(data.createdAt).getTime(),
     updatedAt: new Date(data.updatedAt).getTime(),
+  }
+}
+
+function transformTag(data: ApiTag): Tag {
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description || undefined,
+    createdAt: new Date(data.createdAt).getTime(),
   }
 }
 
@@ -112,4 +132,52 @@ export async function deleteSceneGroup(
   if (!json.ok) {
     throw new Error(json.error || 'Failed to delete scene group')
   }
+}
+
+// Public endpoint - no auth required
+export async function fetchAllTags(): Promise<Tag[]> {
+  const response = await fetch(`${API_BASE}/tags`)
+  const json: ApiResponse<ApiTag[]> = await response.json()
+
+  if (!json.ok) {
+    throw new Error(json.error || 'Failed to fetch tags')
+  }
+
+  return (json.data || []).map(transformTag)
+}
+
+// Public endpoint - supports multiple tag filtering (comma-separated, AND logic)
+export async function fetchSceneGroupsByTags(tags?: string[]): Promise<SceneGroup[]> {
+  const url = tags && tags.length > 0
+    ? `${API_BASE}/scene-groups?tag=${tags.map(t => encodeURIComponent(t)).join(',')}`
+    : `${API_BASE}/scene-groups`
+  const response = await fetch(url)
+  const json: ApiResponse<ApiSceneGroup[]> = await response.json()
+
+  if (!json.ok) {
+    throw new Error(json.error || 'Failed to fetch scene groups')
+  }
+
+  return (json.data || []).map(transformSceneGroup)
+}
+
+// Deprecated: use fetchSceneGroupsByTags instead
+export async function fetchSceneGroupsByTag(tagName?: string): Promise<SceneGroup[]> {
+  return fetchSceneGroupsByTags(tagName ? [tagName] : undefined)
+}
+
+export async function fetchSceneGroupByWorldName(
+  authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>,
+  worldName: string
+): Promise<SceneGroup | null> {
+  const response = await authenticatedFetch(
+    `${API_BASE}/backoffice/scene-groups?worldName=${encodeURIComponent(worldName)}`
+  )
+  const json: ApiResponse<ApiSceneGroup | null> = await response.json()
+
+  if (!json.ok) {
+    throw new Error(json.error || 'Failed to fetch scene group by world name')
+  }
+
+  return json.data ? transformSceneGroup(json.data) : null
 }

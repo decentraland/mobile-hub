@@ -7,6 +7,7 @@ import { Navbar } from './components/Navbar'
 import { AppTabs, type AppView } from './components/AppTabs'
 import { MapPage } from './pages/MapPage'
 import { WorldsPage } from './pages/WorldsPage'
+import { CurationPage } from './pages/CurationPage'
 import { config } from './config'
 
 const authConfig = {
@@ -26,7 +27,9 @@ function App() {
           <Navbar
             tabs={<AppTabs activeView={activeView} onViewChange={setActiveView} />}
           />
-          {activeView === 'map' ? <MapPage /> : <WorldsPage />}
+          {activeView === 'map' && <MapPage />}
+          {activeView === 'worlds' && <WorldsPage />}
+          {activeView === 'curation' && <CurationPage />}
         </BansProvider>
       </AuthProvider>
     </BrowserRouter>

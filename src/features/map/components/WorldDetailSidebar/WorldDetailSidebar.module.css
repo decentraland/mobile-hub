@@ -233,3 +233,80 @@
   background: rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.9);
 }
+
+/* Curation Tags Styles */
+.curationTag {
+  padding: 4px 8px;
+  background: rgba(0, 217, 255, 0.15);
+  border-radius: 12px;
+  font-size: 12px;
+  color: #00D9FF;
+}
+
+.noTags {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+
+.editTagsButton {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(0, 217, 255, 0.15);
+  color: #00D9FF;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.editTagsButton:hover {
+  background: rgba(0, 217, 255, 0.25);
+}
+
+.tagEditorContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tagEditorActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.tagEditorCancel,
+.tagEditorSave {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tagEditorCancel {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.tagEditorCancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.tagEditorSave {
+  background: #00D9FF;
+  color: #000;
+}
+
+.tagEditorSave:hover:not(:disabled) {
+  background: #00c4e8;
+}
+
+.tagEditorCancel:disabled,
+.tagEditorSave:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

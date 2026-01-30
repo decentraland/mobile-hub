@@ -1,0 +1,7 @@
+.curation-page {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: rgb(18, 18, 22);
+}

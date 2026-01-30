@@ -1,25 +1,36 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { FC } from 'react'
 import type { WorldInfo } from '../../api/worldsApi'
 import type { Ban } from '../../api/bansApi'
+import type { SceneGroup } from '../../types'
+import { TagEditor } from '../../../curation'
 import styles from './WorldDetailSidebar.module.css'
 
 interface WorldDetailSidebarProps {
   world: WorldInfo
   ban?: Ban | null
+  worldGroup?: SceneGroup | null
   onClose: () => void
   onBanToggle?: (shouldBan: boolean) => void
   isBanning?: boolean
+  onUpdateWorldTags?: (worldName: string, tags: string[]) => Promise<void>
+  onCreateWorldGroup?: (worldName: string, name: string, tags: string[]) => Promise<SceneGroup | null>
 }
 
 export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
   world,
   ban,
+  worldGroup,
   onClose,
   onBanToggle,
-  isBanning = false
+  isBanning = false,
+  onUpdateWorldTags,
+  onCreateWorldGroup
 }) => {
+  const [showTagEditor, setShowTagEditor] = useState(false)
+  const [editingTags, setEditingTags] = useState<string[]>([])
+  const [isSavingTags, setIsSavingTags] = useState(false)
   // Handle Escape key to close sidebar
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -35,6 +46,41 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
   const handleBanClick = () => {
     onBanToggle?.(!world.isBanned)
   }
+
+  // Initialize editing tags when tag editor opens
+  useEffect(() => {
+    if (showTagEditor) {
+      setEditingTags(worldGroup?.tags || [])
+    }
+  }, [showTagEditor, worldGroup])
+
+  const handleSaveTags = async () => {
+    if (worldGroup && onUpdateWorldTags) {
+      // Update existing world group's tags
+      setIsSavingTags(true)
+      try {
+        await onUpdateWorldTags(world.name, editingTags)
+        setShowTagEditor(false)
+      } catch (err) {
+        console.error('Failed to update world tags:', err)
+      } finally {
+        setIsSavingTags(false)
+      }
+    } else if (onCreateWorldGroup) {
+      // Create new world group with tags
+      setIsSavingTags(true)
+      try {
+        await onCreateWorldGroup(world.name, world.title || world.name, editingTags)
+        setShowTagEditor(false)
+      } catch (err) {
+        console.error('Failed to create world group with tags:', err)
+      } finally {
+        setIsSavingTags(false)
+      }
+    }
+  }
+
+  const canEditTags = onUpdateWorldTags || onCreateWorldGroup
 
   // Check if the world was redeployed since being banned
   const wasRedeployed = world.isBanned &&
@@ -94,15 +140,67 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
           </div>
         )}
 
-        {/* Tags */}
+        {/* World Tags (from world metadata) */}
         {world.tags && world.tags.length > 0 && (
           <div className={styles.field}>
-            <label className={styles.label}>Tags</label>
+            <label className={styles.label}>World Tags</label>
             <div className={styles.tags}>
               {world.tags.map(tag => (
                 <span key={tag} className={styles.tag}>{tag}</span>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Curation Tags Section */}
+        {canEditTags && (
+          <div className={styles.field}>
+            <label className={styles.label}>
+              Tags
+              {!showTagEditor && (
+                <button
+                  className={styles.editTagsButton}
+                  onClick={() => setShowTagEditor(true)}
+                >
+                  Edit
+                </button>
+              )}
+            </label>
+            {showTagEditor ? (
+              <div className={styles.tagEditorContainer}>
+                <TagEditor
+                  tags={editingTags}
+                  onChange={setEditingTags}
+                  disabled={isSavingTags}
+                />
+                <div className={styles.tagEditorActions}>
+                  <button
+                    className={styles.tagEditorCancel}
+                    onClick={() => setShowTagEditor(false)}
+                    disabled={isSavingTags}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={styles.tagEditorSave}
+                    onClick={handleSaveTags}
+                    disabled={isSavingTags}
+                  >
+                    {isSavingTags ? 'Saving...' : 'Save Tags'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.tags}>
+                {(worldGroup?.tags || []).length > 0 ? (
+                  (worldGroup?.tags || []).map(tag => (
+                    <span key={tag} className={styles.curationTag}>{tag}</span>
+                  ))
+                ) : (
+                  <span className={styles.noTags}>No tags</span>
+                )}
+              </div>
+            )}
           </div>
         )}
 
