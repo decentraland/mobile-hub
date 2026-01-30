@@ -1,23 +1,24 @@
 import { useCallback, useState } from 'react';
 import { MapProvider } from '../context/MapContext';
-import { GroupsProvider } from '../context/GroupsContext';
-import { useGroupsState, useGroupsDispatch, useGroupsApi } from '../context/useGroupsHooks';
+import { PlacesProvider } from '../context/PlacesContext';
+import { usePlacesState, usePlacesDispatch, usePlacesApi } from '../context/usePlacesHooks';
 import { useMapDispatch } from '../context/useMapHooks';
 import { useBansApi, useBansState } from '../context/useBansHooks';
-import { getNextColor } from '../utils/groupUtils';
 import { MapCanvas } from './MapCanvas';
 import { MapControls } from './MapControls';
 import { CoordinateDisplay } from './CoordinateDisplay';
 import { SelectionOverlay } from './SelectionOverlay';
-import { GroupsOverlay } from './GroupsOverlay';
-import { GroupsSidebar } from './GroupsSidebar';
+import { PlacesOverlay } from './PlacesOverlay';
+import { PlacesSidebar } from './PlacesSidebar';
 import { BannedScenesSidebar } from './BannedScenesSidebar';
 import { FloatingActionButton } from './FloatingActionButton';
-import { SceneDetailSidebar } from './SceneDetailSidebar';
+import { PlaceDetailSidebar } from './PlaceDetailSidebar';
 import { SceneHighlightOverlay } from './SceneHighlightOverlay';
+import { formatPosition, parsePosition, coordsToPositions } from '../utils/coordinates';
 import styles from '../styles/MapView.module.css';
-import type { ParcelCoord, SceneGroup } from '../types';
+import type { ParcelCoord, Place } from '../types';
 import type { Ban } from '../api/bansApi';
+import type { SceneInfo } from '../api/sceneApi';
 
 interface MapViewProps {
   initialCenter?: ParcelCoord;
@@ -29,17 +30,17 @@ type InteractionMode = 'view' | 'select';
 
 // Track what's selected for the detail sidebar
 type SelectedItem =
-  | { type: 'parcel'; parcel: ParcelCoord; group?: SceneGroup }
+  | { type: 'parcel'; parcel: ParcelCoord; place?: Place }
   | null;
 
 type SidebarMode = 'list' | 'create' | 'edit';
 
 function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoord) => void }) {
-  const { groups, sidebarOpen } = useGroupsState();
-  const groupsDispatch = useGroupsDispatch();
+  const { places, placeGroups, sidebarOpen } = usePlacesState();
+  const placesDispatch = usePlacesDispatch();
   const mapDispatch = useMapDispatch();
-  const { updateGroup, deleteGroup, createGroup } = useGroupsApi();
-  const { checkGroupBanned, checkSceneBanned, getGroupBan, getSceneBan, toggleBan } = useBansApi();
+  const { updatePlace, createPlace, setPlaceGroup, removePlaceGroup, createPlaceGroup } = usePlacesApi();
+  const { checkPlaceBanned, checkSceneBanned, getPlaceBan, getSceneBan, togglePlaceBan, banScene, unbanScene } = useBansApi();
   const { bans } = useBansState();
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('view');
   const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
@@ -47,64 +48,110 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('list');
   const [bansSidebarOpen, setBansSidebarOpen] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState(true);
+  const [isBanning, setIsBanning] = useState(false);
 
-  // Find which group a parcel belongs to
-  const findGroupByParcel = useCallback(
-    (parcel: ParcelCoord): SceneGroup | null => {
-      return groups.find(g =>
-        g.parcels.some(p => p.x === parcel.x && p.y === parcel.y)
+  // Find which place a parcel belongs to
+  const findPlaceByParcel = useCallback(
+    (parcel: ParcelCoord): Place | null => {
+      const positionStr = formatPosition(parcel.x, parcel.y);
+      return places.find(p =>
+        p.type === 'scene' && p.positions.includes(positionStr)
       ) || null;
     },
-    [groups]
+    [places]
   );
 
-  // Check if a group or scene is banned (wrapper for SceneDetailSidebar)
-  const checkIsBanned = useCallback((targetGroup?: SceneGroup, parcels?: ParcelCoord[]): boolean => {
-    if (targetGroup) {
-      return checkGroupBanned(targetGroup.id);
+  // Check if a place is a temporary/unsaved one
+  const isTemporaryPlace = useCallback((place?: Place): boolean => {
+    return place?.id.startsWith('temp-') ?? false;
+  }, []);
+
+  // Check if a place or scene is banned (wrapper for PlaceDetailSidebar)
+  const checkIsBanned = useCallback((place?: Place, parcels?: ParcelCoord[]): boolean => {
+    if (place && !isTemporaryPlace(place)) {
+      return checkPlaceBanned(place.id);
     }
-    if (parcels && parcels.length > 0) {
-      return checkSceneBanned(parcels);
+    // For temporary places or raw parcels, check by positions
+    const checkPositions = place?.positions || (parcels ? coordsToPositions(parcels) : []);
+    if (checkPositions.length > 0) {
+      return checkSceneBanned(checkPositions);
     }
     return false;
-  }, [checkGroupBanned, checkSceneBanned]);
+  }, [checkPlaceBanned, checkSceneBanned, isTemporaryPlace]);
 
-  // Get ban info for a group or scene (wrapper for SceneDetailSidebar)
-  const getBanInfo = useCallback((targetGroup?: SceneGroup, parcels?: ParcelCoord[]) => {
-    if (targetGroup) {
-      return getGroupBan(targetGroup.id);
+  // Get ban info for a place or scene (wrapper for PlaceDetailSidebar)
+  const getBanInfo = useCallback((place?: Place, parcels?: ParcelCoord[]) => {
+    if (place && !isTemporaryPlace(place)) {
+      return getPlaceBan(place.id);
     }
-    if (parcels && parcels.length > 0) {
-      return getSceneBan(parcels);
+    // For temporary places or raw parcels, get by positions
+    const checkPositions = place?.positions || (parcels ? coordsToPositions(parcels) : []);
+    if (checkPositions.length > 0) {
+      return getSceneBan(checkPositions);
     }
     return undefined;
-  }, [getGroupBan, getSceneBan]);
+  }, [getPlaceBan, getSceneBan, isTemporaryPlace]);
 
-  // Handle ban toggle (wrapper for SceneDetailSidebar)
-  const handleBanToggle = useCallback(async (shouldBan: boolean, targetGroup?: SceneGroup, parcels?: ParcelCoord[], sceneId?: string) => {
+  // Handle ban toggle (wrapper for PlaceDetailSidebar)
+  const handleBanToggle = useCallback(async (shouldBan: boolean, sceneId?: string) => {
+    const place = selectedItem?.type === 'parcel' ? selectedItem.place : undefined;
+
+    setIsBanning(true);
     try {
-      await toggleBan(targetGroup, parcels, shouldBan, sceneId);
+      if (place && !isTemporaryPlace(place)) {
+        // For saved places, use place-based banning
+        await togglePlaceBan(place, shouldBan, sceneId);
+      } else {
+        // For temporary places or raw parcels, use position-based banning
+        const positions = place?.positions || coordsToPositions(highlightedParcels);
+        if (positions.length > 0) {
+          if (shouldBan) {
+            await banScene(positions, sceneId);
+          } else {
+            await unbanScene(positions);
+          }
+        }
+      }
     } catch (err) {
       console.error('Failed to toggle ban:', err);
+    } finally {
+      setIsBanning(false);
     }
-  }, [toggleBan]);
+  }, [selectedItem, highlightedParcels, togglePlaceBan, banScene, unbanScene, isTemporaryPlace]);
 
   const handleParcelClick = useCallback(
     (parcel: ParcelCoord) => {
       if (interactionMode === 'select') {
         // In select mode, toggle parcel selection
-        groupsDispatch({ type: 'TOGGLE_PARCEL_SELECTION', payload: parcel });
+        placesDispatch({ type: 'TOGGLE_PARCEL_SELECTION', payload: parcel });
       } else {
         // In view mode, open detail sidebar with the clicked parcel
-        // Also include the group if this parcel belongs to one
-        const group = findGroupByParcel(parcel);
-        setSelectedItem({ type: 'parcel', parcel, group: group || undefined });
+        // Also include the place if this parcel belongs to one
+        const existingPlace = findPlaceByParcel(parcel);
+
+        // If no existing place, create a temporary one for display purposes
+        const place: Place = existingPlace || {
+          id: `temp-${parcel.x}-${parcel.y}`,
+          type: 'scene',
+          basePosition: formatPosition(parcel.x, parcel.y),
+          worldName: null,
+          sceneId: null,
+          groupId: null,
+          groupName: null,
+          groupColor: null,
+          tags: [],
+          positions: [formatPosition(parcel.x, parcel.y)],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        setSelectedItem({ type: 'parcel', parcel, place });
       }
 
       // Also call external handler if provided
       onParcelClick?.(parcel);
     },
-    [interactionMode, groupsDispatch, findGroupByParcel, onParcelClick]
+    [interactionMode, placesDispatch, findPlaceByParcel, onParcelClick]
   );
 
   const handleLayersClick = () => {
@@ -112,16 +159,16 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
     setSelectedItem(null);
     setHighlightedParcels([]);
     setBansSidebarOpen(false);
-    // Reset to list mode and toggle the groups sidebar
+    // Reset to list mode and toggle the places sidebar
     setSidebarMode('list');
-    groupsDispatch({ type: 'TOGGLE_SIDEBAR' });
+    placesDispatch({ type: 'TOGGLE_SIDEBAR' });
   };
 
   const handleBansClick = () => {
-    // Close detail sidebar and groups sidebar if open
+    // Close detail sidebar and places sidebar if open
     setSelectedItem(null);
     setHighlightedParcels([]);
-    groupsDispatch({ type: 'SET_SIDEBAR_OPEN', payload: false });
+    placesDispatch({ type: 'SET_SIDEBAR_OPEN', payload: false });
     // Toggle the bans sidebar
     setBansSidebarOpen(!bansSidebarOpen);
   };
@@ -134,176 +181,216 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
     // Skip world bans - they don't have parcel coordinates
     if (ban.worldName) return;
 
-    // For group bans, find the group and center on its first parcel
-    if (ban.groupId) {
-      const group = groups.find(g => g.id === ban.groupId);
-      if (group && group.parcels.length > 0) {
-        // Calculate center of the group's parcels
-        const avgX = group.parcels.reduce((sum, p) => sum + p.x, 0) / group.parcels.length;
-        const avgY = group.parcels.reduce((sum, p) => sum + p.y, 0) / group.parcels.length;
+    // For place bans, find the place and center on its first parcel
+    if (ban.placeId) {
+      const place = places.find(p => p.id === ban.placeId);
+      if (place && place.positions.length > 0) {
+        // Calculate center of the place's parcels
+        const parcels = place.positions.map(parsePosition);
+        const avgX = parcels.reduce((sum, p) => sum + p.x, 0) / parcels.length;
+        const avgY = parcels.reduce((sum, p) => sum + p.y, 0) / parcels.length;
         mapDispatch({ type: 'SET_CENTER', payload: { x: avgX, y: avgY } });
         mapDispatch({ type: 'SET_ZOOM', payload: 8 });
       }
       return;
     }
 
-    // For scene bans, center on the parcels
-    if (ban.parcels.length > 0) {
-      const avgX = ban.parcels.reduce((sum, p) => sum + p.x, 0) / ban.parcels.length;
-      const avgY = ban.parcels.reduce((sum, p) => sum + p.y, 0) / ban.parcels.length;
+    // For scene bans, center on the positions
+    if (ban.positions.length > 0) {
+      const parcels = ban.positions.map(parsePosition);
+      const avgX = parcels.reduce((sum, p) => sum + p.x, 0) / parcels.length;
+      const avgY = parcels.reduce((sum, p) => sum + p.y, 0) / parcels.length;
       mapDispatch({ type: 'SET_CENTER', payload: { x: avgX, y: avgY } });
       mapDispatch({ type: 'SET_ZOOM', payload: 8 });
     }
-  }, [groups, mapDispatch]);
+  }, [places, mapDispatch]);
 
   const handleCloseDetailSidebar = () => {
     setSelectedItem(null);
     setHighlightedParcels([]);
   };
 
-  const handleSceneLoaded = useCallback((parcels: ParcelCoord[]) => {
-    setHighlightedParcels(parcels);
+  // Handle when scene info is loaded - update highlighted parcels and temporary place
+  const handleSceneInfoLoaded = useCallback((sceneInfo: SceneInfo) => {
+    // Highlight all parcels of the scene
+    setHighlightedParcels(sceneInfo.parcels);
+
+    // Update the temporary place with all positions from the scene
+    setSelectedItem(prev => {
+      if (!prev || prev.type !== 'parcel' || !prev.place) return prev;
+      // Only update if it's a temporary place
+      if (!prev.place.id.startsWith('temp-')) return prev;
+      return {
+        ...prev,
+        place: {
+          ...prev.place,
+          positions: coordsToPositions(sceneInfo.parcels),
+          sceneId: sceneInfo.entityId,
+          basePosition: sceneInfo.baseParcel
+            ? formatPosition(sceneInfo.baseParcel.x, sceneInfo.baseParcel.y)
+            : prev.place.basePosition,
+        }
+      };
+    });
   }, []);
 
-  const handleCreateGroupFromScene = useCallback((parcels: ParcelCoord[], _name: string) => {
+  const handleViewPlace = useCallback((placeId: string) => {
     // Close the detail sidebar
     setSelectedItem(null);
     setHighlightedParcels([]);
-    // Set the parcels as selected
-    groupsDispatch({ type: 'SET_SELECTED_PARCELS', payload: parcels });
-    // Enter select mode and open the groups sidebar in create mode
-    setInteractionMode('select');
-    setSidebarMode('create');
-    groupsDispatch({ type: 'SET_SIDEBAR_OPEN', payload: true });
-  }, [groupsDispatch]);
-
-  // Get all parcels that are already in any group
-  const getParcelsInGroups = useCallback((): Set<string> => {
-    const parcelsInGroups = new Set<string>();
-    groups.forEach(g => {
-      g.parcels.forEach(p => parcelsInGroups.add(`${p.x},${p.y}`));
-    });
-    return parcelsInGroups;
-  }, [groups]);
-
-  const handleAddToExistingGroup = useCallback(async (parcels: ParcelCoord[], groupId: string) => {
-    const targetGroup = groups.find(g => g.id === groupId);
-    if (!targetGroup) return;
-
-    // Get all parcels already in ANY group
-    const parcelsInGroups = getParcelsInGroups();
-
-    // Filter to only parcels not in any group (except the target group itself)
-    const targetGroupParcels = new Set(targetGroup.parcels.map(p => `${p.x},${p.y}`));
-    const freeParcels = parcels.filter(p => {
-      const key = `${p.x},${p.y}`;
-      // Allow if not in any group, or already in target group
-      return !parcelsInGroups.has(key) || targetGroupParcels.has(key);
-    });
-
-    if (freeParcels.length === 0) {
-      // All parcels already belong to other groups
-      return;
-    }
-
-    // Merge with existing parcels in target group
-    const mergedParcels = [...targetGroup.parcels];
-    freeParcels.forEach(p => {
-      if (!targetGroupParcels.has(`${p.x},${p.y}`)) {
-        mergedParcels.push(p);
-      }
-    });
-
-    const updatedGroup = await updateGroup(groupId, { parcels: mergedParcels });
-
-    // Update the selected item to reflect the new group association
-    if (selectedItem && updatedGroup) {
-      setSelectedItem({ ...selectedItem, group: updatedGroup });
-    }
-  }, [groups, updateGroup, getParcelsInGroups, selectedItem]);
-
-  const handleRemoveFromGroup = useCallback(async (parcels: ParcelCoord[], groupId: string) => {
-    const targetGroup = groups.find(g => g.id === groupId);
-    if (!targetGroup) return;
-
-    // Remove the specified parcels from the group
-    const parcelsToRemove = new Set(parcels.map(p => `${p.x},${p.y}`));
-    const remainingParcels = targetGroup.parcels.filter(p => !parcelsToRemove.has(`${p.x},${p.y}`));
-
-    if (remainingParcels.length === 0) {
-      // If no parcels left, delete the group
-      await deleteGroup(groupId);
-    } else {
-      await updateGroup(groupId, { parcels: remainingParcels });
-    }
-
-    // Update the selected item to remove the group association
-    if (selectedItem) {
-      setSelectedItem({ ...selectedItem, group: undefined });
-    }
-  }, [groups, updateGroup, deleteGroup, selectedItem]);
-
-  const handleViewGroup = useCallback((group: SceneGroup) => {
-    // Close the detail sidebar
-    setSelectedItem(null);
-    setHighlightedParcels([]);
-    // Set the group for editing and open the sidebar in edit mode
-    groupsDispatch({ type: 'SET_EDITING_GROUP', payload: group.id });
+    // Set the place for editing and open the sidebar in edit mode
+    placesDispatch({ type: 'SET_EDITING_PLACE', payload: placeId });
     setSidebarMode('edit');
-    groupsDispatch({ type: 'SET_SIDEBAR_OPEN', payload: true });
-  }, [groupsDispatch]);
+    placesDispatch({ type: 'SET_SIDEBAR_OPEN', payload: true });
+  }, [placesDispatch]);
 
-  // Handle updating tags for an existing group
-  const handleUpdateGroupTags = useCallback(async (groupId: string, tags: string[]) => {
-    await updateGroup(groupId, { tags });
-  }, [updateGroup]);
+  // Handle updating tags for an existing place
+  const handleUpdatePlaceTags = useCallback(async (placeId: string, tags: string[]) => {
+    await updatePlace(placeId, { tags });
+  }, [updatePlace]);
 
-  // Handle creating a new group with tags from the scene detail sidebar
-  const handleCreateGroupWithTags = useCallback(async (
-    parcels: ParcelCoord[],
-    name: string,
-    tags: string[]
-  ): Promise<SceneGroup | null> => {
-    const color = getNextColor(groups);
-    const newGroup = await createGroup({
-      name,
-      parcels,
+  // Handle creating a new place from a temporary place (when saving tags)
+  const handleCreatePlaceWithTags = useCallback(async (_placeId: string, tags: string[]) => {
+    if (!selectedItem || selectedItem.type !== 'parcel' || !selectedItem.place) return;
+    const place = selectedItem.place;
+    if (!isTemporaryPlace(place)) return;
+
+    // Create a new place with the scene's positions and tags
+    const basePosition = place.basePosition || place.positions[0];
+    const newPlace = await createPlace({
+      type: 'scene',
+      basePosition,
       tags,
-      color,
+      positions: place.positions,
     });
-    if (selectedItem && newGroup) {
-      setSelectedItem({ ...selectedItem, group: newGroup });
+
+    if (newPlace) {
+      // Update the selected item with the new saved place
+      setSelectedItem({
+        type: 'parcel',
+        parcel: selectedItem.parcel,
+        place: newPlace
+      });
     }
-    return newGroup;
-  }, [createGroup, groups, selectedItem]);
+  }, [selectedItem, isTemporaryPlace, createPlace]);
 
-  // Check if a group is banned (simplified for GroupsSidebar)
-  const checkGroupIsBanned = useCallback((group: SceneGroup): boolean => {
-    return checkGroupBanned(group.id);
-  }, [checkGroupBanned]);
+  // Handle assigning a place to a group (for saved places)
+  const handleAssignToGroup = useCallback(async (placeId: string, groupId: string) => {
+    const updatedPlace = await setPlaceGroup(placeId, groupId);
+    if (!updatedPlace) return;
+    // Update the selected item with the new place data
+    setSelectedItem(prev => {
+      if (!prev || prev.type !== 'parcel' || prev.place?.id !== placeId) return prev;
+      return { ...prev, place: updatedPlace };
+    });
+  }, [setPlaceGroup]);
 
-  // Handle ban toggle for a group (simplified for GroupsSidebar)
-  const handleGroupBanToggle = useCallback(async (group: SceneGroup, shouldBan: boolean) => {
+  // Handle assigning a temporary place to a group (creates place first, then assigns)
+  const handleAssignTemporaryToGroup = useCallback(async (_placeId: string, groupId: string) => {
+    if (!selectedItem || selectedItem.type !== 'parcel' || !selectedItem.place) return;
+    const place = selectedItem.place;
+    if (!isTemporaryPlace(place)) return;
+
+    // Create the place first
+    const basePosition = place.basePosition || place.positions[0];
+    const newPlace = await createPlace({
+      type: 'scene',
+      basePosition,
+      groupId, // Assign to group during creation
+      tags: [],
+      positions: place.positions,
+    });
+
+    if (newPlace) {
+      // Update the selected item with the new saved place
+      setSelectedItem({
+        type: 'parcel',
+        parcel: selectedItem.parcel,
+        place: newPlace
+      });
+    }
+  }, [selectedItem, isTemporaryPlace, createPlace]);
+
+  // Handle removing a place from its group
+  const handleRemoveFromGroup = useCallback(async (placeId: string) => {
+    const updatedPlace = await removePlaceGroup(placeId);
+    if (!updatedPlace) return;
+    // Update the selected item with the new place data
+    setSelectedItem(prev => {
+      if (!prev || prev.type !== 'parcel' || prev.place?.id !== placeId) return prev;
+      return { ...prev, place: updatedPlace };
+    });
+  }, [removePlaceGroup]);
+
+  // Handle creating a new group and assigning the current scene to it
+  const handleCreateGroupAndAssign = useCallback(async (name: string, color: string) => {
+    if (!selectedItem || selectedItem.type !== 'parcel' || !selectedItem.place) return;
+    const place = selectedItem.place;
+
+    // Create the group first
+    const newGroup = await createPlaceGroup({ name, color, description: '' });
+    if (!newGroup) return;
+
+    if (isTemporaryPlace(place)) {
+      // For temporary places: create the place with the group assignment
+      const basePosition = place.basePosition || place.positions[0];
+      const newPlace = await createPlace({
+        type: 'scene',
+        basePosition,
+        groupId: newGroup.id,
+        tags: [],
+        positions: place.positions,
+      });
+      if (newPlace) {
+        setSelectedItem({
+          type: 'parcel',
+          parcel: selectedItem.parcel,
+          place: newPlace
+        });
+      }
+    } else {
+      // For saved places: just assign to the group
+      const updatedPlace = await setPlaceGroup(place.id, newGroup.id);
+      if (updatedPlace) {
+        setSelectedItem({
+          type: 'parcel',
+          parcel: selectedItem.parcel,
+          place: updatedPlace
+        });
+      }
+    }
+  }, [selectedItem, isTemporaryPlace, createPlaceGroup, createPlace, setPlaceGroup]);
+
+  // Check if a place is banned (simplified for PlacesSidebar)
+  const checkPlaceIsBanned = useCallback((place: Place): boolean => {
+    return checkPlaceBanned(place.id);
+  }, [checkPlaceBanned]);
+
+  // Handle ban toggle for a place (simplified for PlacesSidebar)
+  const handlePlaceBanToggle = useCallback(async (place: Place, shouldBan: boolean) => {
     try {
-      await toggleBan(group, undefined, shouldBan);
+      await togglePlaceBan(place, shouldBan);
     } catch (err) {
-      console.error('Failed to toggle group ban:', err);
+      console.error('Failed to toggle place ban:', err);
     }
-  }, [toggleBan]);
+  }, [togglePlaceBan]);
 
   const isSelectMode = interactionMode === 'select';
   const showDetailSidebar = selectedItem !== null && !isSelectMode;
 
+  // Get current place for PlaceDetailSidebar
+  const currentPlace = selectedItem?.type === 'parcel' ? selectedItem.place : undefined;
+
   return (
     <div className={styles.mapView}>
       <MapCanvas onParcelClick={handleParcelClick} />
-      <GroupsOverlay visible={overlayVisible} />
+      <PlacesOverlay visible={overlayVisible} />
       {isSelectMode && <SelectionOverlay />}
       {highlightedParcels.length > 0 && <SceneHighlightOverlay parcels={highlightedParcels} />}
       <MapControls />
       <CoordinateDisplay />
       {sidebarOpen && (
-        <GroupsSidebar
+        <PlacesSidebar
           onExitSelectMode={() => {
             setInteractionMode('view');
             setSidebarMode('list');
@@ -311,26 +398,25 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
           onEnterSelectMode={() => setInteractionMode('select')}
           isSelectMode={isSelectMode}
           initialMode={sidebarMode}
-          checkIsBanned={checkGroupIsBanned}
-          onBanToggle={handleGroupBanToggle}
+          checkIsBanned={checkPlaceIsBanned}
+          onBanToggle={handlePlaceBanToggle}
         />
       )}
-      {showDetailSidebar && (
-        <SceneDetailSidebar
-          parcel={selectedItem.parcel}
-          group={selectedItem.group}
+      {showDetailSidebar && currentPlace && (
+        <PlaceDetailSidebar
+          place={currentPlace}
           onClose={handleCloseDetailSidebar}
-          checkIsBanned={checkIsBanned}
-          getBanInfo={getBanInfo}
+          isBanned={checkIsBanned(currentPlace)}
+          ban={getBanInfo(currentPlace)}
           onBanToggle={handleBanToggle}
-          onSceneLoaded={handleSceneLoaded}
-          onCreateGroup={handleCreateGroupFromScene}
-          onAddToGroup={handleAddToExistingGroup}
-          onRemoveFromGroup={handleRemoveFromGroup}
-          onViewGroup={handleViewGroup}
-          existingGroups={groups}
-          onUpdateGroupTags={handleUpdateGroupTags}
-          onCreateGroupWithTags={handleCreateGroupWithTags}
+          isBanning={isBanning}
+          onUpdateTags={isTemporaryPlace(currentPlace) ? handleCreatePlaceWithTags : handleUpdatePlaceTags}
+          onViewGroup={isTemporaryPlace(currentPlace) ? undefined : handleViewPlace}
+          onAssignToGroup={isTemporaryPlace(currentPlace) ? handleAssignTemporaryToGroup : handleAssignToGroup}
+          onRemoveFromGroup={isTemporaryPlace(currentPlace) ? undefined : handleRemoveFromGroup}
+          onCreateGroupAndAssign={handleCreateGroupAndAssign}
+          availableGroups={placeGroups}
+          onSceneInfoLoaded={isTemporaryPlace(currentPlace) ? handleSceneInfoLoaded : undefined}
         />
       )}
       <BannedScenesSidebar
@@ -343,7 +429,7 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
         onBansClick={handleBansClick}
         onToggleOverlay={() => setOverlayVisible(!overlayVisible)}
         overlayVisible={overlayVisible}
-        groupCount={groups.length}
+        groupCount={places.filter(p => p.type === 'scene').length}
         banCount={bans.filter(b => !b.worldName).length}
       />
     </div>
@@ -357,9 +443,9 @@ export function MapView({
 }: MapViewProps) {
   return (
     <MapProvider initialCenter={initialCenter} initialZoom={initialZoom}>
-      <GroupsProvider>
+      <PlacesProvider>
         <MapViewContent onParcelClick={onParcelClick} />
-      </GroupsProvider>
+      </PlacesProvider>
     </MapProvider>
   );
 }

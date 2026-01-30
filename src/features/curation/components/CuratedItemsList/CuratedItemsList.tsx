@@ -1,18 +1,18 @@
 import type { FC } from 'react'
-import type { SceneGroup } from '../../../map/types'
+import type { Place, PlaceWithBanStatus } from '../../../map/types'
 import { CuratedItemCard } from '../CuratedItemCard/CuratedItemCard'
 import styles from './CuratedItemsList.module.css'
 
 interface CuratedItemsListProps {
-  groups: SceneGroup[]
+  places: PlaceWithBanStatus[]
   isLoading: boolean
-  onViewGroup?: (group: SceneGroup) => void
+  onViewPlace?: (place: Place) => void
 }
 
 export const CuratedItemsList: FC<CuratedItemsListProps> = ({
-  groups,
+  places,
   isLoading,
-  onViewGroup
+  onViewPlace
 }) => {
   if (isLoading) {
     return (
@@ -22,14 +22,14 @@ export const CuratedItemsList: FC<CuratedItemsListProps> = ({
     )
   }
 
-  if (groups.length === 0) {
+  if (places.length === 0) {
     return (
       <div className={styles.container}>
         <div className={styles.empty}>
-          <div className={styles.emptyIcon}>🏷</div>
+          <div className={styles.emptyIcon}>{'\uD83C\uDFF7'}</div>
           <div className={styles.emptyTitle}>No curated items</div>
           <div className={styles.emptyText}>
-            Tag scenes, groups, or worlds to see them here
+            Tag scenes or worlds to see them here
           </div>
         </div>
       </div>
@@ -37,25 +37,25 @@ export const CuratedItemsList: FC<CuratedItemsListProps> = ({
   }
 
   // Group by type
-  const worlds = groups.filter(g => g.worldName !== null)
-  const scenes = groups.filter(g => g.worldName === null && g.parcels.length === 1)
-  const groupsWithMultipleParcels = groups.filter(g => g.worldName === null && g.parcels.length > 1)
+  const worlds = places.filter(p => p.type === 'world')
+  const scenes = places.filter(p => p.type === 'scene')
+  const bannedCount = places.filter(p => p.isBanned).length
 
   return (
     <div className={styles.container}>
       <div className={styles.stats}>
-        {groups.length} item{groups.length !== 1 ? 's' : ''} found
+        {places.length} item{places.length !== 1 ? 's' : ''} found
         {worlds.length > 0 && <span className={styles.stat}>{worlds.length} world{worlds.length !== 1 ? 's' : ''}</span>}
         {scenes.length > 0 && <span className={styles.stat}>{scenes.length} scene{scenes.length !== 1 ? 's' : ''}</span>}
-        {groupsWithMultipleParcels.length > 0 && <span className={styles.stat}>{groupsWithMultipleParcels.length} group{groupsWithMultipleParcels.length !== 1 ? 's' : ''}</span>}
+        {bannedCount > 0 && <span className={styles.statBanned}>{bannedCount} banned</span>}
       </div>
 
       <div className={styles.grid}>
-        {groups.map(group => (
+        {places.map(place => (
           <CuratedItemCard
-            key={group.id}
-            group={group}
-            onClick={() => onViewGroup?.(group)}
+            key={place.id}
+            place={place}
+            onClick={() => onViewPlace?.(place)}
           />
         ))}
       </div>

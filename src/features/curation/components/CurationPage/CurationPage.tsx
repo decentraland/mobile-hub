@@ -1,25 +1,39 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { FC } from 'react'
-import type { SceneGroup, Tag } from '../../../map/types'
-import { fetchAllTags, fetchSceneGroupsByTags } from '../../../map/api/sceneGroupsApi'
+import type { Tag, Place, PlaceWithBanStatus } from '../../../map/types'
+import { fetchAllTags } from '../../../map/api/placesApi'
+import { fetchAllPlaces } from '../../../map/api/placesApi'
 import { TagFilterBar } from '../TagFilterBar/TagFilterBar'
 import { CuratedItemsList } from '../CuratedItemsList/CuratedItemsList'
 import { exportAllowedIOSToCSV } from '../../utils/csvExport'
 import styles from './CurationPage.module.css'
 
 interface CurationPageProps {
-  onViewGroup?: (group: SceneGroup) => void
+  onViewPlace?: (place: Place) => void
 }
 
-export const CurationPage: FC<CurationPageProps> = ({ onViewGroup }) => {
+export const CurationPage: FC<CurationPageProps> = ({ onViewPlace }) => {
   const [tags, setTags] = useState<Tag[]>([])
-  const [groups, setGroups] = useState<SceneGroup[]>([])
+  const [places, setPlaces] = useState<PlaceWithBanStatus[]>([])
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [isLoadingTags, setIsLoadingTags] = useState(true)
-  const [isLoadingGroups, setIsLoadingGroups] = useState(false)
+  const [isLoadingPlaces, setIsLoadingPlaces] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Filter places by search query
+  const filteredPlaces = useMemo(() => {
+    if (!searchQuery.trim()) return places
+    const query = searchQuery.toLowerCase()
+    return places.filter(p => {
+      const name = p.type === 'world'
+        ? p.worldName
+        : p.basePosition
+      return name?.toLowerCase().includes(query) || p.groupName?.toLowerCase().includes(query)
+    })
+  }, [places, searchQuery])
 
   // Load all tags on mount
   useEffect(() => {
@@ -45,39 +59,32 @@ export const CurationPage: FC<CurationPageProps> = ({ onViewGroup }) => {
     return () => { cancelled = true }
   }, [])
 
-  // Load groups when selected tags change
+  // Load places when selected tags change
   useEffect(() => {
     let cancelled = false
 
-    async function loadGroups() {
-      if (!selectedTags.length) return setGroups([])
+    async function loadPlaces() {
+      if (!selectedTags.length) return setPlaces([])
       try {
-        setIsLoadingGroups(true)
+        setIsLoadingPlaces(true)
         setError(null)
 
-        // Server now supports multiple tags with AND logic
-        let fetchedGroups = await fetchSceneGroupsByTags(
-          selectedTags.length > 0 ? selectedTags : undefined
-        )
-
-        // If no tags selected, only show groups that have at least one tag
-        if (selectedTags.length === 0) {
-          fetchedGroups = fetchedGroups.filter(g => g.tags.length > 0)
-        }
+        // Fetch places with tag filtering (AND logic on server)
+        const fetchedPlaces = await fetchAllPlaces(selectedTags)
 
         if (!cancelled) {
-          setGroups(fetchedGroups)
-          setIsLoadingGroups(false)
+          setPlaces(fetchedPlaces)
+          setIsLoadingPlaces(false)
         }
       } catch (err) {
         if (!cancelled) {
           setError('Failed to load curated items')
-          setIsLoadingGroups(false)
+          setIsLoadingPlaces(false)
         }
       }
     }
 
-    loadGroups()
+    loadPlaces()
     return () => { cancelled = true }
   }, [selectedTags])
 
@@ -100,16 +107,16 @@ export const CurationPage: FC<CurationPageProps> = ({ onViewGroup }) => {
       setExportProgress(null)
       setError(null)
 
-      // Fetch all groups with allowed_ios tag
-      const allowedGroups = await fetchSceneGroupsByTags(['allowed_ios'])
+      // Fetch all places with allowed_ios tag
+      const allowedPlaces = await fetchAllPlaces(['allowed_ios'])
 
-      if (allowedGroups.length === 0) {
+      if (allowedPlaces.length === 0) {
         setError('No items with allowed_ios tag found')
         return
       }
 
       // Export to CSV with progress tracking
-      await exportAllowedIOSToCSV(allowedGroups, (current, total) => {
+      await exportAllowedIOSToCSV(allowedPlaces, (current, total) => {
         setExportProgress({ current, total })
       })
     } catch (err) {
@@ -133,6 +140,8 @@ export const CurationPage: FC<CurationPageProps> = ({ onViewGroup }) => {
             selectedTags={selectedTags}
             onTagToggle={handleTagToggle}
             onClear={handleClearTags}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
             exportButton={
               <button
                 className={styles.exportButton}
@@ -149,9 +158,9 @@ export const CurationPage: FC<CurationPageProps> = ({ onViewGroup }) => {
           />
 
           <CuratedItemsList
-            groups={groups}
-            isLoading={isLoadingGroups}
-            onViewGroup={onViewGroup}
+            places={filteredPlaces}
+            isLoading={isLoadingPlaces}
+            onViewPlace={onViewPlace}
           />
         </>
       )}

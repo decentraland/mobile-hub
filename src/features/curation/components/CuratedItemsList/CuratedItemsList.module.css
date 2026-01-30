@@ -53,6 +53,13 @@
   border-radius: 4px;
 }
 
+.statBanned {
+  padding: 2px 8px;
+  background: rgba(255, 68, 68, 0.15);
+  border-radius: 4px;
+  color: #FF6B6B;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

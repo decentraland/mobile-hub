@@ -1,1 +1,0 @@
-export { SceneDetailSidebar } from './SceneDetailSidebar'

@@ -1,1 +1,0 @@
-export { GroupsSidebar } from './GroupsSidebar';

@@ -130,7 +130,7 @@
   background: rgba(255, 107, 107, 0.3);
 }
 
-/* Group Card */
+/* Place Card */
 .groupCard {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
@@ -226,7 +226,7 @@
   background: rgba(76, 175, 80, 0.3);
 }
 
-/* Banned group card */
+/* Banned place card */
 .groupCardBanned {
   border: 1px solid rgba(255, 68, 68, 0.3);
   background: rgba(255, 68, 68, 0.05);
@@ -248,7 +248,28 @@
   text-transform: uppercase;
 }
 
-/* Group Form */
+/* Type badge */
+.typeBadge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.typeBadgeScene {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+
+.typeBadgeWorld {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+/* Place Form */
 .form {
   display: flex;
   flex-direction: column;
@@ -410,4 +431,26 @@
 .buttonSecondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Search input */
+.searchInput {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 14px;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #00D9FF;
+}
+
+.searchInput::placeholder {
+  color: rgba(255, 255, 255, 0.4);
 }

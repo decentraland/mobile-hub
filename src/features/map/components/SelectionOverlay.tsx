@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useMapState } from '../context/useMapHooks';
-import { useGroupsState } from '../context/useGroupsHooks';
+import { usePlacesState } from '../context/usePlacesHooks';
 import { parcelToScreen } from '../utils/coordinates';
 import { BASE_PIXELS_PER_PARCEL } from '../utils/constants';
 
@@ -10,7 +10,7 @@ const SELECTION_STROKE_WIDTH = 2;
 
 export function SelectionOverlay() {
   const { viewport } = useMapState();
-  const { selectedParcels, selectionColor } = useGroupsState();
+  const { selectedParcels, selectionColor } = usePlacesState();
 
   const color = selectionColor || DEFAULT_SELECTION_COLOR;
 

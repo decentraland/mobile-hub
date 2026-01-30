@@ -8,6 +8,8 @@ interface TagFilterBarProps {
   onTagToggle: (tagName: string) => void
   onClear: () => void
   exportButton?: ReactNode
+  searchQuery?: string
+  onSearchChange?: (query: string) => void
 }
 
 // Suggested/common tags to highlight
@@ -18,7 +20,9 @@ export const TagFilterBar: FC<TagFilterBarProps> = ({
   selectedTags,
   onTagToggle,
   onClear,
-  exportButton
+  exportButton,
+  searchQuery,
+  onSearchChange
 }) => {
   // Sort tags: suggested first, then alphabetically
   const sortedTags = [...tags].sort((a, b) => {
@@ -32,6 +36,15 @@ export const TagFilterBar: FC<TagFilterBarProps> = ({
 
   return (
     <div className={styles.container}>
+      {onSearchChange && (
+        <input
+          type="text"
+          className={styles.searchInput}
+          placeholder="Search by name..."
+          value={searchQuery || ''}
+          onChange={(e) => onSearchChange(e.target.value)}
+        />
+      )}
       <div className={styles.label}>Filter by tag:</div>
       <div className={styles.tags}>
         {sortedTags.map(tag => {

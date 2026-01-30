@@ -16,36 +16,36 @@ export function useBansState() {
 
 export function useBansApi() {
   const {
-    checkGroupBanned,
     checkSceneBanned,
     checkWorldBanned,
-    getGroupBan,
+    checkPlaceBanned,
     getSceneBan,
     getWorldBan,
-    banGroup,
-    unbanGroup,
+    getPlaceBan,
     banScene,
     unbanScene,
     banWorld,
     unbanWorld,
-    toggleBan,
+    banPlace,
+    unbanPlace,
+    togglePlaceBan,
     refreshBans,
   } = useBans()
 
   return {
-    checkGroupBanned,
     checkSceneBanned,
     checkWorldBanned,
-    getGroupBan,
+    checkPlaceBanned,
     getSceneBan,
     getWorldBan,
-    banGroup,
-    unbanGroup,
+    getPlaceBan,
     banScene,
     unbanScene,
     banWorld,
     unbanWorld,
-    toggleBan,
+    banPlace,
+    unbanPlace,
+    togglePlaceBan,
     refreshBans,
   }
 }

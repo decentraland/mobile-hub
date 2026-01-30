@@ -56,42 +56,71 @@ export interface Tag {
   createdAt: number;
 }
 
-// Scene Groups Types
-export interface SceneGroup {
+// Places Model Types
+export type PlaceType = 'scene' | 'world';
+
+export interface Place {
   id: string;
-  name: string;
-  description: string;
-  color: string;
+  type: PlaceType;
+  name: string | null;          // Scene/world title
+  basePosition: string | null;  // "x,y" format for scenes, null for worlds
+  worldName: string | null;     // For worlds
+  sceneId: string | null;
+  groupId: string | null;
+  groupName: string | null;
+  groupColor: string | null;
   tags: string[];
-  parcels: ParcelCoord[];
-  worldName: string | null;
+  positions: string[];          // ["x,y", "x,y"] format for scenes
   createdAt: number;
   updatedAt: number;
 }
 
-export interface GroupsState {
+export interface PlaceGroup {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  placeCount: number;
+  tags: string[];           // Aggregated from places' tags
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Flattened place with ban status (as returned by API)
+export type PlaceWithBanStatus = Place & {
+  isBanned: boolean;
+  banSceneId: string | null;
+}
+
+// Places State
+export interface PlacesState {
   mode: MapMode;
-  groups: SceneGroup[];
+  places: Place[];
+  placeGroups: PlaceGroup[];
   selectedParcels: ParcelCoord[];
   selectionColor: string | null;
-  editingGroupId: string | null;
+  editingPlaceId: string | null;
   sidebarOpen: boolean;
   isLoading: boolean;
   error: string | null;
 }
 
-export type GroupsAction =
+export type PlacesAction =
   | { type: 'SET_MODE'; payload: MapMode }
-  | { type: 'ADD_GROUP'; payload: SceneGroup }
-  | { type: 'UPDATE_GROUP'; payload: SceneGroup }
-  | { type: 'DELETE_GROUP'; payload: string }
+  | { type: 'ADD_PLACE'; payload: Place }
+  | { type: 'UPDATE_PLACE'; payload: Place }
+  | { type: 'DELETE_PLACE'; payload: string }
+  | { type: 'ADD_PLACE_GROUP'; payload: PlaceGroup }
+  | { type: 'UPDATE_PLACE_GROUP'; payload: PlaceGroup }
+  | { type: 'DELETE_PLACE_GROUP'; payload: string }
   | { type: 'SET_SELECTED_PARCELS'; payload: ParcelCoord[] }
   | { type: 'TOGGLE_PARCEL_SELECTION'; payload: ParcelCoord }
   | { type: 'CLEAR_SELECTION' }
-  | { type: 'SET_EDITING_GROUP'; payload: string | null }
+  | { type: 'SET_EDITING_PLACE'; payload: string | null }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_SIDEBAR_OPEN'; payload: boolean }
   | { type: 'SET_SELECTION_COLOR'; payload: string | null }
-  | { type: 'LOAD_GROUPS'; payload: SceneGroup[] }
+  | { type: 'LOAD_PLACES'; payload: Place[] }
+  | { type: 'LOAD_PLACE_GROUPS'; payload: PlaceGroup[] }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null };

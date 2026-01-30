@@ -3,19 +3,21 @@ import { useAuth } from '../../../contexts/auth'
 import { useAuthenticatedFetch } from '../../../hooks/useAuthenticatedFetch'
 import {
   fetchAllBans,
-  createGroupBan,
   createSceneBan,
   createWorldBan,
+  createPlaceBan,
   deleteBan,
-  isGroupBanned,
   isSceneBanned,
   isWorldBanned,
-  getBanForGroup,
+  isPlaceBanned,
   getBanForScene,
   getBanForWorld,
+  getBanForPlace,
   type Ban,
 } from '../api/bansApi'
-import type { SceneGroup, ParcelCoord } from '../types'
+import type { Place } from '../types'
+import { formatPosition } from '../utils/coordinates'
+import type { ParcelCoord } from '../types'
 
 // State
 interface BansState {
@@ -60,23 +62,23 @@ const initialState: BansState = {
 // Context types
 interface BansContextValue {
   state: BansState
-  // Check functions
-  checkGroupBanned: (groupId: string) => boolean
-  checkSceneBanned: (parcels: ParcelCoord[]) => boolean
+  // Check functions (accept either string positions or ParcelCoord for backwards compat)
+  checkSceneBanned: (positions: string[] | ParcelCoord[]) => boolean
   checkWorldBanned: (worldName: string) => boolean
+  checkPlaceBanned: (placeId: string) => boolean
   // Get ban info functions
-  getGroupBan: (groupId: string) => Ban | undefined
-  getSceneBan: (parcels: ParcelCoord[]) => Ban | undefined
+  getSceneBan: (positions: string[] | ParcelCoord[]) => Ban | undefined
   getWorldBan: (worldName: string) => Ban | undefined
+  getPlaceBan: (placeId: string) => Ban | undefined
   // API functions
-  banGroup: (group: SceneGroup, reason?: string) => Promise<void>
-  unbanGroup: (group: SceneGroup) => Promise<void>
-  banScene: (parcels: ParcelCoord[], sceneId?: string, reason?: string) => Promise<void>
-  unbanScene: (parcels: ParcelCoord[]) => Promise<void>
+  banScene: (positions: string[] | ParcelCoord[], sceneId?: string, reason?: string) => Promise<void>
+  unbanScene: (positions: string[] | ParcelCoord[]) => Promise<void>
   banWorld: (worldName: string, sceneId?: string, reason?: string) => Promise<void>
   unbanWorld: (worldName: string) => Promise<void>
+  banPlace: (place: Place, sceneId?: string, reason?: string) => Promise<void>
+  unbanPlace: (place: Place) => Promise<void>
   // Combined function for UI
-  toggleBan: (targetGroup?: SceneGroup, parcels?: ParcelCoord[], shouldBan?: boolean, sceneId?: string) => Promise<void>
+  togglePlaceBan: (place: Place, shouldBan?: boolean, sceneId?: string) => Promise<void>
   refreshBans: () => Promise<void>
 }
 
@@ -113,73 +115,59 @@ export function BansProvider({ children }: BansProviderProps) {
     refreshBans()
   }, [refreshBans])
 
-  // Check functions
-  const checkGroupBanned = useCallback((groupId: string): boolean => {
-    return isGroupBanned(state.bans, groupId)
-  }, [state.bans])
+  // Helper to normalize positions to string array
+  const normalizePositions = useCallback((positions: string[] | ParcelCoord[]): string[] => {
+    if (positions.length === 0) return []
+    if (typeof positions[0] === 'string') {
+      return positions as string[]
+    }
+    return (positions as ParcelCoord[]).map(p => formatPosition(p.x, p.y))
+  }, [])
 
-  const checkSceneBanned = useCallback((parcels: ParcelCoord[]): boolean => {
-    return isSceneBanned(state.bans, parcels)
-  }, [state.bans])
+  // Check functions
+  const checkSceneBanned = useCallback((positions: string[] | ParcelCoord[]): boolean => {
+    return isSceneBanned(state.bans, normalizePositions(positions))
+  }, [state.bans, normalizePositions])
 
   const checkWorldBanned = useCallback((worldName: string): boolean => {
     return isWorldBanned(state.bans, worldName)
   }, [state.bans])
 
-  // Get ban info functions
-  const getGroupBan = useCallback((groupId: string): Ban | undefined => {
-    return getBanForGroup(state.bans, groupId)
+  const checkPlaceBanned = useCallback((placeId: string): boolean => {
+    return isPlaceBanned(state.bans, placeId)
   }, [state.bans])
 
-  const getSceneBan = useCallback((parcels: ParcelCoord[]): Ban | undefined => {
-    return getBanForScene(state.bans, parcels)
-  }, [state.bans])
+  // Get ban info functions
+  const getSceneBan = useCallback((positions: string[] | ParcelCoord[]): Ban | undefined => {
+    return getBanForScene(state.bans, normalizePositions(positions))
+  }, [state.bans, normalizePositions])
 
   const getWorldBan = useCallback((worldName: string): Ban | undefined => {
     return getBanForWorld(state.bans, worldName)
   }, [state.bans])
 
-  // Ban a group
-  const banGroup = useCallback(async (group: SceneGroup, reason?: string) => {
-    try {
-      const ban = await createGroupBan(authenticatedFetch, { groupId: group.id, reason })
-      dispatch({ type: 'ADD_BAN', payload: ban })
-    } catch (err) {
-      console.error('Failed to ban group:', err)
-      throw err
-    }
-  }, [authenticatedFetch])
-
-  // Unban a group
-  const unbanGroup = useCallback(async (group: SceneGroup) => {
-    const ban = getBanForGroup(state.bans, group.id)
-    if (!ban) return
-
-    try {
-      await deleteBan(authenticatedFetch, ban.id)
-      dispatch({ type: 'REMOVE_BAN', payload: ban.id })
-    } catch (err) {
-      console.error('Failed to unban group:', err)
-      throw err
-    }
-  }, [authenticatedFetch, state.bans])
+  const getPlaceBan = useCallback((placeId: string): Ban | undefined => {
+    return getBanForPlace(state.bans, placeId)
+  }, [state.bans])
 
   // Ban a scene
-  const banScene = useCallback(async (parcels: ParcelCoord[], sceneId?: string, reason?: string) => {
-    if (parcels.length === 0) return
+  const banScene = useCallback(async (positions: string[] | ParcelCoord[], sceneId?: string, reason?: string) => {
+    const normalizedPositions = normalizePositions(positions)
+    if (normalizedPositions.length === 0) return
 
     try {
-      const ban = await createSceneBan(authenticatedFetch, { parcels, sceneId, reason })
+      const ban = await createSceneBan(authenticatedFetch, { positions: normalizedPositions, sceneId, reason })
       dispatch({ type: 'ADD_BAN', payload: ban })
     } catch (err) {
       console.error('Failed to ban scene:', err)
       throw err
     }
-  }, [authenticatedFetch])
+  }, [authenticatedFetch, normalizePositions])
 
   // Unban a scene
-  const unbanScene = useCallback(async (parcels: ParcelCoord[]) => {
-    const ban = getBanForScene(state.bans, parcels)
+  const unbanScene = useCallback(async (positions: string[] | ParcelCoord[]) => {
+    const normalizedPositions = normalizePositions(positions)
+    const ban = getBanForScene(state.bans, normalizedPositions)
     if (!ban) return
 
     try {
@@ -189,7 +177,7 @@ export function BansProvider({ children }: BansProviderProps) {
       console.error('Failed to unban scene:', err)
       throw err
     }
-  }, [authenticatedFetch, state.bans])
+  }, [authenticatedFetch, state.bans, normalizePositions])
 
   // Ban a world
   const banWorld = useCallback(async (worldName: string, sceneId?: string, reason?: string) => {
@@ -216,46 +204,58 @@ export function BansProvider({ children }: BansProviderProps) {
     }
   }, [authenticatedFetch, state.bans])
 
-  // Combined toggle function for UI components
-  const toggleBan = useCallback(async (targetGroup?: SceneGroup, parcels?: ParcelCoord[], shouldBan?: boolean, sceneId?: string) => {
-    if (targetGroup) {
-      // Handle group ban/unban
-      const isBanned = checkGroupBanned(targetGroup.id)
-      const newBanState = shouldBan ?? !isBanned
-
-      if (newBanState && !isBanned) {
-        await banGroup(targetGroup)
-      } else if (!newBanState && isBanned) {
-        await unbanGroup(targetGroup)
-      }
-    } else if (parcels && parcels.length > 0) {
-      // Handle scene ban/unban
-      const isBanned = checkSceneBanned(parcels)
-      const newBanState = shouldBan ?? !isBanned
-
-      if (newBanState && !isBanned) {
-        await banScene(parcels, sceneId)
-      } else if (!newBanState && isBanned) {
-        await unbanScene(parcels)
-      }
+  // Ban a place
+  const banPlace = useCallback(async (place: Place, sceneId?: string, reason?: string) => {
+    try {
+      const ban = await createPlaceBan(authenticatedFetch, { placeId: place.id, sceneId, reason })
+      dispatch({ type: 'ADD_BAN', payload: ban })
+    } catch (err) {
+      console.error('Failed to ban place:', err)
+      throw err
     }
-  }, [checkGroupBanned, checkSceneBanned, banGroup, unbanGroup, banScene, unbanScene])
+  }, [authenticatedFetch])
+
+  // Unban a place
+  const unbanPlace = useCallback(async (place: Place) => {
+    const ban = getBanForPlace(state.bans, place.id)
+    if (!ban) return
+
+    try {
+      await deleteBan(authenticatedFetch, ban.id)
+      dispatch({ type: 'REMOVE_BAN', payload: ban.id })
+    } catch (err) {
+      console.error('Failed to unban place:', err)
+      throw err
+    }
+  }, [authenticatedFetch, state.bans])
+
+  // Toggle place ban
+  const togglePlaceBan = useCallback(async (place: Place, shouldBan?: boolean, sceneId?: string) => {
+    const isBanned = checkPlaceBanned(place.id)
+    const newBanState = shouldBan ?? !isBanned
+
+    if (newBanState && !isBanned) {
+      await banPlace(place, sceneId)
+    } else if (!newBanState && isBanned) {
+      await unbanPlace(place)
+    }
+  }, [checkPlaceBanned, banPlace, unbanPlace])
 
   const value: BansContextValue = {
     state,
-    checkGroupBanned,
     checkSceneBanned,
     checkWorldBanned,
-    getGroupBan,
+    checkPlaceBanned,
     getSceneBan,
     getWorldBan,
-    banGroup,
-    unbanGroup,
+    getPlaceBan,
     banScene,
     unbanScene,
     banWorld,
     unbanWorld,
-    toggleBan,
+    banPlace,
+    unbanPlace,
+    togglePlaceBan,
     refreshBans,
   }
 

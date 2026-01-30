@@ -150,3 +150,29 @@
   color: rgba(255, 255, 255, 0.4);
   font-size: 12px;
 }
+
+/* Tagged world cards */
+.world-card-tagged {
+  background: rgba(0, 217, 255, 0.1);
+  border: 1px solid rgba(0, 217, 255, 0.2);
+}
+
+.world-card-tagged:hover {
+  background: rgba(0, 217, 255, 0.15);
+  border-color: rgba(0, 217, 255, 0.3);
+}
+
+.world-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.world-card-tag {
+  padding: 2px 8px;
+  background: rgba(0, 217, 255, 0.2);
+  border-radius: 12px;
+  color: #00D9FF;
+  font-size: 11px;
+}

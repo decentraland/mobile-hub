@@ -67,7 +67,7 @@ export const FloatingActionButton: FC<FloatingActionButtonProps> = ({
         className={styles.fab}
         onClick={onGroupsClick}
         disabled={disabled}
-        title="View scene groups"
+        title="View places"
       >
         {/* Layers icon */}
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

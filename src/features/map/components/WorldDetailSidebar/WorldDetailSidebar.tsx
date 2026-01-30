@@ -3,30 +3,30 @@ import { createPortal } from 'react-dom'
 import type { FC } from 'react'
 import type { WorldInfo } from '../../api/worldsApi'
 import type { Ban } from '../../api/bansApi'
-import type { SceneGroup } from '../../types'
+import type { Place } from '../../types'
 import { TagEditor } from '../../../curation'
 import styles from './WorldDetailSidebar.module.css'
 
 interface WorldDetailSidebarProps {
   world: WorldInfo
   ban?: Ban | null
-  worldGroup?: SceneGroup | null
+  worldPlace?: Place | null
   onClose: () => void
   onBanToggle?: (shouldBan: boolean) => void
   isBanning?: boolean
-  onUpdateWorldTags?: (worldName: string, tags: string[]) => Promise<void>
-  onCreateWorldGroup?: (worldName: string, name: string, tags: string[]) => Promise<SceneGroup | null>
+  onUpdateWorldTags?: (tags: string[]) => Promise<void>
+  onCreateWorldPlace?: (worldName: string, tags: string[]) => Promise<Place | null>
 }
 
 export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
   world,
   ban,
-  worldGroup,
+  worldPlace,
   onClose,
   onBanToggle,
   isBanning = false,
   onUpdateWorldTags,
-  onCreateWorldGroup
+  onCreateWorldPlace
 }) => {
   const [showTagEditor, setShowTagEditor] = useState(false)
   const [editingTags, setEditingTags] = useState<string[]>([])
@@ -50,37 +50,37 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
   // Initialize editing tags when tag editor opens
   useEffect(() => {
     if (showTagEditor) {
-      setEditingTags(worldGroup?.tags || [])
+      setEditingTags(worldPlace?.tags || [])
     }
-  }, [showTagEditor, worldGroup])
+  }, [showTagEditor, worldPlace])
 
   const handleSaveTags = async () => {
-    if (worldGroup && onUpdateWorldTags) {
-      // Update existing world group's tags
+    if (worldPlace && onUpdateWorldTags) {
+      // Update existing world place's tags
       setIsSavingTags(true)
       try {
-        await onUpdateWorldTags(world.name, editingTags)
+        await onUpdateWorldTags(editingTags)
         setShowTagEditor(false)
       } catch (err) {
         console.error('Failed to update world tags:', err)
       } finally {
         setIsSavingTags(false)
       }
-    } else if (onCreateWorldGroup) {
-      // Create new world group with tags
+    } else if (onCreateWorldPlace) {
+      // Create new world place with tags
       setIsSavingTags(true)
       try {
-        await onCreateWorldGroup(world.name, world.title || world.name, editingTags)
+        await onCreateWorldPlace(world.name, editingTags)
         setShowTagEditor(false)
       } catch (err) {
-        console.error('Failed to create world group with tags:', err)
+        console.error('Failed to create world place with tags:', err)
       } finally {
         setIsSavingTags(false)
       }
     }
   }
 
-  const canEditTags = onUpdateWorldTags || onCreateWorldGroup
+  const canEditTags = onUpdateWorldTags || onCreateWorldPlace
 
   // Check if the world was redeployed since being banned
   const wasRedeployed = world.isBanned &&
@@ -192,8 +192,8 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
               </div>
             ) : (
               <div className={styles.tags}>
-                {(worldGroup?.tags || []).length > 0 ? (
-                  (worldGroup?.tags || []).map(tag => (
+                {(worldPlace?.tags || []).length > 0 ? (
+                  (worldPlace?.tags || []).map(tag => (
                     <span key={tag} className={styles.curationTag}>{tag}</span>
                   ))
                 ) : (

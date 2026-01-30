@@ -175,3 +175,27 @@ export function getParcelRangeString(parcels: ParcelCoord[]): string {
 
   return `${minX},${minY} to ${maxX},${maxY}`
 }
+
+/**
+ * Get a readable position range string from position strings (e.g., "10,20 to 12,22")
+ */
+export function getPositionRangeString(positions: string[]): string {
+  if (positions.length === 0) return ''
+  if (positions.length === 1) return positions[0]
+
+  const coords = positions.map(pos => {
+    const [x, y] = pos.split(',').map(Number)
+    return { x, y }
+  })
+
+  const minX = Math.min(...coords.map(p => p.x))
+  const maxX = Math.max(...coords.map(p => p.x))
+  const minY = Math.min(...coords.map(p => p.y))
+  const maxY = Math.max(...coords.map(p => p.y))
+
+  if (minX === maxX && minY === maxY) {
+    return `${minX},${minY}`
+  }
+
+  return `${minX},${minY} to ${maxX},${maxY}`
+}

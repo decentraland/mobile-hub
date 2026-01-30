@@ -1,5 +1,4 @@
 import { config } from '../../../config'
-import type { ParcelCoord } from '../types'
 
 const API_BASE = config.get('MOBILE_BFF_URL')
 
@@ -7,7 +6,8 @@ export interface Ban {
   id: string
   groupId: string | null  // If set, it's a group ban
   worldName: string | null  // If set, it's a world ban
-  parcels: ParcelCoord[]  // For scene bans, the parcels that identify the scene
+  placeId: string | null  // If set, it's a place ban (new places model)
+  positions: string[]  // For scene bans, the positions that identify the scene ("x,y" format)
   sceneId: string | null  // Entity ID at ban time (for detecting redeploys)
   reason?: string
   createdAt: number
@@ -20,7 +20,7 @@ export interface CreateGroupBanInput {
 }
 
 export interface CreateSceneBanInput {
-  parcels: ParcelCoord[]
+  positions: string[]  // ["x,y", "x,y"] format
   sceneId?: string  // Entity ID of the scene at ban time
   reason?: string
 }
@@ -31,12 +31,19 @@ export interface CreateWorldBanInput {
   reason?: string
 }
 
+export interface CreatePlaceBanInput {
+  placeId: string
+  sceneId?: string  // Entity ID at ban time
+  reason?: string
+}
+
 // Backend response types
 interface ApiBan {
   id: string
   groupId: string | null
   worldName: string | null
-  parcels: ParcelCoord[]
+  placeId: string | null
+  positions: string[]
   sceneId: string | null
   reason?: string
   createdAt: number
@@ -54,7 +61,8 @@ function transformBan(data: ApiBan): Ban {
     id: data.id,
     groupId: data.groupId,
     worldName: data.worldName,
-    parcels: data.parcels || [],
+    placeId: data.placeId,
+    positions: data.positions || [],
     sceneId: data.sceneId,
     reason: data.reason || undefined,
     createdAt: data.createdAt,
@@ -142,7 +150,28 @@ export async function createWorldBan(
 }
 
 /**
- * Delete a ban (unban a group, scene, or world)
+ * Create a place ban
+ */
+export async function createPlaceBan(
+  authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>,
+  input: CreatePlaceBanInput
+): Promise<Ban> {
+  const response = await authenticatedFetch(`${API_BASE}/backoffice/bans`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const json: ApiResponse<ApiBan> = await response.json()
+
+  if (!json.ok || !json.data) {
+    throw new Error(json.error || 'Failed to create place ban')
+  }
+
+  return transformBan(json.data)
+}
+
+/**
+ * Delete a ban (unban a group, scene, world, or place)
  */
 export async function deleteBan(
   authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>,
@@ -166,12 +195,12 @@ export function isGroupBanned(bans: Ban[], groupId: string): boolean {
 }
 
 /**
- * Check if a scene (by parcels) is banned
+ * Check if a scene (by positions) is banned
  */
-export function isSceneBanned(bans: Ban[], parcels: ParcelCoord[]): boolean {
-  if (parcels.length === 0) return false
-  const sceneKey = generateParcelKey(parcels)
-  return bans.some(ban => ban.groupId === null && ban.worldName === null && generateParcelKey(ban.parcels) === sceneKey)
+export function isSceneBanned(bans: Ban[], positions: string[]): boolean {
+  if (positions.length === 0) return false
+  const sceneKey = generatePositionKey(positions)
+  return bans.some(ban => ban.groupId === null && ban.worldName === null && generatePositionKey(ban.positions) === sceneKey)
 }
 
 /**
@@ -192,10 +221,10 @@ export function getBanForGroup(bans: Ban[], groupId: string): Ban | undefined {
 /**
  * Get the ban for a scene (if exists)
  */
-export function getBanForScene(bans: Ban[], parcels: ParcelCoord[]): Ban | undefined {
-  if (parcels.length === 0) return undefined
-  const sceneKey = generateParcelKey(parcels)
-  return bans.find(ban => ban.groupId === null && ban.worldName === null && generateParcelKey(ban.parcels) === sceneKey)
+export function getBanForScene(bans: Ban[], positions: string[]): Ban | undefined {
+  if (positions.length === 0) return undefined
+  const sceneKey = generatePositionKey(positions)
+  return bans.find(ban => ban.groupId === null && ban.worldName === null && generatePositionKey(ban.positions) === sceneKey)
 }
 
 /**
@@ -207,8 +236,22 @@ export function getBanForWorld(bans: Ban[], worldName: string): Ban | undefined 
 }
 
 /**
- * Generate a unique key from parcels (for comparison)
+ * Check if a place is banned
  */
-export function generateParcelKey(parcels: ParcelCoord[]): string {
-  return parcels.map(p => `${p.x},${p.y}`).sort().join('|')
+export function isPlaceBanned(bans: Ban[], placeId: string): boolean {
+  return bans.some(ban => ban.placeId === placeId)
+}
+
+/**
+ * Get the ban for a place (if exists)
+ */
+export function getBanForPlace(bans: Ban[], placeId: string): Ban | undefined {
+  return bans.find(ban => ban.placeId === placeId)
+}
+
+/**
+ * Generate a unique key from positions (for comparison)
+ */
+export function generatePositionKey(positions: string[]): string {
+  return [...positions].sort().join('|')
 }

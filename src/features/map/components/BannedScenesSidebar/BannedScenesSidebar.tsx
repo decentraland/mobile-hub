@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useBansState, useBansApi } from '../../context/useBansHooks';
 import { fetchSceneByParcel } from '../../api/sceneApi';
+import { parsePosition } from '../../utils/coordinates';
 import type { Ban } from '../../api/bansApi';
 import styles from './BannedScenesSidebar.module.css';
 
@@ -19,10 +20,10 @@ function formatDate(timestamp: number): string {
   return `${day}/${month}/${year}`;
 }
 
-function formatParcels(parcels: { x: number; y: number }[]): string {
-  if (parcels.length === 0) return '';
-  if (parcels.length === 1) return `${parcels[0].x},${parcels[0].y}`;
-  return `${parcels[0].x},${parcels[0].y} (+${parcels.length - 1} more)`;
+function formatPositions(positions: string[]): string {
+  if (positions.length === 0) return '';
+  if (positions.length === 1) return positions[0];
+  return `${positions[0]} (+${positions.length - 1} more)`;
 }
 
 function getBanTitle(ban: Ban): string {
@@ -32,7 +33,7 @@ function getBanTitle(ban: Ban): string {
   if (ban.worldName) {
     return ban.worldName;
   }
-  return formatParcels(ban.parcels);
+  return formatPositions(ban.positions);
 }
 
 function getBanType(ban: Ban): string {
@@ -43,7 +44,7 @@ function getBanType(ban: Ban): string {
 
 export function BannedScenesSidebar({ isOpen, onClose, onBanClick }: BannedScenesSidebarProps) {
   const { bans, isLoading, error } = useBansState();
-  const { unbanGroup, unbanScene, unbanWorld } = useBansApi();
+  const { unbanScene, unbanWorld } = useBansApi();
   const [redeployedBans, setRedeployedBans] = useState<Set<string>>(new Set());
 
   // Filter out world bans - only show scene and group bans
@@ -58,9 +59,10 @@ export function BannedScenesSidebar({ isOpen, onClose, onBanClick }: BannedScene
 
       for (const ban of sceneBans) {
         // Only check scene bans that have a sceneId stored
-        if (ban.sceneId && ban.parcels.length > 0) {
+        if (ban.sceneId && ban.positions.length > 0) {
           try {
-            const currentScene = await fetchSceneByParcel(ban.parcels[0]);
+            const parcel = parsePosition(ban.positions[0]);
+            const currentScene = await fetchSceneByParcel(parcel);
             if (currentScene && currentScene.entityId !== ban.sceneId) {
               redeployed.add(ban.id);
             }
@@ -93,12 +95,10 @@ export function BannedScenesSidebar({ isOpen, onClose, onBanClick }: BannedScene
   const handleUnban = async (ban: Ban, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      if (ban.groupId) {
-        await unbanGroup({ id: ban.groupId } as any);
-      } else if (ban.worldName) {
+      if (ban.worldName) {
         await unbanWorld(ban.worldName);
-      } else if (ban.parcels.length > 0) {
-        await unbanScene(ban.parcels);
+      } else if (ban.positions.length > 0) {
+        await unbanScene(ban.positions);
       }
     } catch (err) {
       console.error('Failed to unban:', err);
@@ -155,9 +155,9 @@ export function BannedScenesSidebar({ isOpen, onClose, onBanClick }: BannedScene
               {ban.createdBy && ` by ${ban.createdBy.slice(0, 6)}...${ban.createdBy.slice(-4)}`}
             </div>
 
-            {ban.parcels.length > 1 && (
+            {ban.positions.length > 1 && (
               <div className={styles.banMeta}>
-                {ban.parcels.length} parcels
+                {ban.positions.length} parcels
               </div>
             )}
 

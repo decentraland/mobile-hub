@@ -1,6 +1,7 @@
-import type { SceneGroup } from '../../map/types'
+import type { Place } from '../../map/types'
 import { fetchSceneByParcel } from '../../map/api/sceneApi'
 import { fetchWorldInfo } from '../../map/api/worldsApi'
+import { parsePosition } from '../../map/utils/coordinates'
 
 export interface ExportRow {
   title: string
@@ -8,83 +9,76 @@ export interface ExportRow {
   owner: string
   contact: string
   deeplink: string
-  type: 'world' | 'scene' | 'group'
+  type: 'world' | 'scene'
   tags: string
 }
 
 /**
  * Generate a deeplink for a world or scene
  */
-function generateDeeplink(group: SceneGroup): string {
-  if (group.worldName) {
-    return `decentraland://open?realm=${group.worldName}`
+function generateDeeplink(place: Place): string {
+  if (place.type === 'world' && place.worldName) {
+    return `decentraland://open?realm=${place.worldName}`
   }
 
-  // For scenes/groups, use the first parcel as position
-  if (group.parcels.length > 0) {
-    const parcel = group.parcels[0]
-    return `decentraland://open?position=${parcel.x},${parcel.y}`
+  // For scenes, use the base parcel as position
+  if (place.basePosition) {
+    return `decentraland://open?position=${place.basePosition}`
   }
 
   return ''
 }
 
 /**
- * Determine the type of a group
+ * Enrich places with metadata from Catalyst/worlds content server
  */
-function getGroupType(group: SceneGroup): 'world' | 'scene' | 'group' {
-  if (group.worldName) return 'world'
-  if (group.parcels.length === 1) return 'scene'
-  return 'group'
-}
-
-/**
- * Enrich groups with metadata from Catalyst/worlds content server
- */
-export async function enrichGroupsWithMetadata(
-  groups: SceneGroup[],
+export async function enrichPlacesWithMetadata(
+  places: Place[],
   onProgress?: (current: number, total: number) => void
 ): Promise<Map<string, { owner: string; contact: string; title: string; description: string }>> {
   const metadata = new Map<string, { owner: string; contact: string; title: string; description: string }>()
 
-  for (let i = 0; i < groups.length; i++) {
-    const group = groups[i]
-    onProgress?.(i + 1, groups.length)
+  for (let i = 0; i < places.length; i++) {
+    const place = places[i]
+    onProgress?.(i + 1, places.length)
 
     try {
-      if (group.worldName) {
+      if (place.type === 'world' && place.worldName) {
         // Fetch world metadata
-        const worldInfo = await fetchWorldInfo(group.worldName)
-        metadata.set(group.id, {
+        const worldInfo = await fetchWorldInfo(place.worldName)
+        metadata.set(place.id, {
           owner: worldInfo.owner || '',
-          contact: '', // Worlds don't have separate contact field
-          title: worldInfo.title || group.name,
-          description: worldInfo.description || group.description
+          contact: '',
+          title: worldInfo.title || place.worldName,
+          description: worldInfo.description || ''
         })
-      } else if (group.parcels.length > 0) {
-        // Fetch scene metadata from first parcel
-        const sceneInfo = await fetchSceneByParcel(group.parcels[0])
+      } else if (place.type === 'scene' && place.basePosition) {
+        // Fetch scene metadata from base parcel
+        const { x, y } = parsePosition(place.basePosition)
+        const sceneInfo = await fetchSceneByParcel({ x, y })
         if (sceneInfo) {
-          metadata.set(group.id, {
+          metadata.set(place.id, {
             owner: sceneInfo.owner || '',
-            contact: '', // Contact info is in owner field from sceneApi
-            title: sceneInfo.name || group.name,
-            description: sceneInfo.description || group.description
+            contact: '',
+            title: sceneInfo.name || `Scene at ${place.basePosition}`,
+            description: sceneInfo.description || ''
           })
         }
       }
     } catch (err) {
-      // If fetch fails, use group data
-      console.warn(`Failed to fetch metadata for ${group.name}:`, err)
+      console.warn(`Failed to fetch metadata for place ${place.id}:`, err)
     }
 
-    // If we didn't get metadata, use group defaults
-    if (!metadata.has(group.id)) {
-      metadata.set(group.id, {
+    // If we didn't get metadata, use place defaults
+    if (!metadata.has(place.id)) {
+      const defaultTitle = place.type === 'world'
+        ? (place.worldName || 'Unknown World')
+        : `Scene at ${place.basePosition || 'unknown'}`
+      metadata.set(place.id, {
         owner: '',
         contact: '',
-        title: group.name,
-        description: group.description
+        title: defaultTitle,
+        description: ''
       })
     }
   }
@@ -93,18 +87,18 @@ export async function enrichGroupsWithMetadata(
 }
 
 /**
- * Convert groups to CSV rows
+ * Convert places to CSV rows
  */
-export function groupsToExportRows(
-  groups: SceneGroup[],
+export function placesToExportRows(
+  places: Place[],
   metadata: Map<string, { owner: string; contact: string; title: string; description: string }>
 ): ExportRow[] {
-  return groups.map(group => {
-    const meta = metadata.get(group.id) || {
+  return places.map(place => {
+    const meta = metadata.get(place.id) || {
       owner: '',
       contact: '',
-      title: group.name,
-      description: group.description
+      title: place.type === 'world' ? (place.worldName || '') : (place.basePosition || 'unknown'),
+      description: ''
     }
 
     return {
@@ -112,9 +106,9 @@ export function groupsToExportRows(
       description: meta.description,
       owner: meta.owner,
       contact: meta.contact,
-      deeplink: generateDeeplink(group),
-      type: getGroupType(group),
-      tags: group.tags.join(', ')
+      deeplink: generateDeeplink(place),
+      type: place.type,
+      tags: place.tags.join(', ')
     }
   })
 }
@@ -176,29 +170,29 @@ export function downloadCSV(csvContent: string, filename: string): void {
 }
 
 /**
- * Main export function - fetches allowed_ios groups and exports to CSV
+ * Main export function - exports places with allowed_ios tag to CSV
  */
 export async function exportAllowedIOSToCSV(
-  groups: SceneGroup[],
+  places: Place[],
   onProgress?: (current: number, total: number) => void
 ): Promise<void> {
   // Filter for allowed_ios tag
-  const allowedGroups = groups.filter(g => g.tags.includes('allowed_ios'))
+  const allowedPlaces = places.filter(p => p.tags.includes('allowed_ios'))
 
-  if (allowedGroups.length === 0) {
+  if (allowedPlaces.length === 0) {
     throw new Error('No items with allowed_ios tag found')
   }
 
   // Enrich with metadata
-  const metadata = await enrichGroupsWithMetadata(allowedGroups, onProgress)
+  const metadata = await enrichPlacesWithMetadata(allowedPlaces, onProgress)
 
   // Convert to export rows
-  const rows = groupsToExportRows(allowedGroups, metadata)
+  const rows = placesToExportRows(allowedPlaces, metadata)
 
   // Generate CSV
   const csv = rowsToCSV(rows)
 
   // Download
   const date = new Date().toISOString().split('T')[0]
-  downloadCSV(csv, `allowed_ios_scenes_${date}.csv`)
+  downloadCSV(csv, `allowed_ios_places_${date}.csv`)
 }

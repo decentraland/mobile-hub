@@ -1,11 +1,10 @@
-import { useState, useCallback, type FC, type FormEvent } from 'react'
+import { useState, useCallback, useEffect, type FC, type FormEvent } from 'react'
 import { useBans, useBansState } from '../features/map/context/useBansHooks'
 import { fetchWorldInfo, type WorldInfo } from '../features/map/api/worldsApi'
 import { WorldDetailSidebar } from '../features/map/components/WorldDetailSidebar'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
-import { createSceneGroup, updateSceneGroup, fetchSceneGroupByWorldName } from '../features/map/api/sceneGroupsApi'
-import type { SceneGroup } from '../features/map/types'
-import { GROUP_COLORS } from '../features/map/utils/groupUtils'
+import { fetchAllPlaces, fetchPlaceByWorldName, createPlace, updatePlace } from '../features/map/api/placesApi'
+import type { Place, PlaceWithBanStatus } from '../features/map/types'
 import './WorldsPage.css'
 
 export const WorldsPage: FC = () => {
@@ -14,7 +13,9 @@ export const WorldsPage: FC = () => {
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [isBanning, setIsBanning] = useState(false)
-  const [worldGroup, setWorldGroup] = useState<SceneGroup | null>(null)
+  const [worldPlace, setWorldPlace] = useState<Place | null>(null)
+  const [taggedWorlds, setTaggedWorlds] = useState<PlaceWithBanStatus[]>([])
+  const [isLoadingTagged, setIsLoadingTagged] = useState(true)
 
   const { banWorld, unbanWorld, checkWorldBanned, getWorldBan } = useBans()
   const { bans } = useBansState()
@@ -23,31 +24,84 @@ export const WorldsPage: FC = () => {
   // Filter world bans only
   const worldBans = bans.filter(ban => ban.worldName !== null)
 
-  const handleSearch = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!searchValue.trim()) return
+  // Load tagged worlds on mount
+  useEffect(() => {
+    let cancelled = false
 
+    async function loadTaggedWorlds() {
+      try {
+        setIsLoadingTagged(true)
+        const allPlaces = await fetchAllPlaces()
+        if (!cancelled) {
+          // Filter to only worlds (type === 'world') that have tags
+          const worldsWithTags = allPlaces.filter(p => p.type === 'world' && p.tags.length > 0)
+          setTaggedWorlds(worldsWithTags)
+        }
+      } catch (err) {
+        console.error('Failed to load tagged worlds:', err)
+      } finally {
+        if (!cancelled) {
+          setIsLoadingTagged(false)
+        }
+      }
+    }
+
+    loadTaggedWorlds()
+    return () => { cancelled = true }
+  }, [])
+
+  const loadWorld = useCallback(async (worldName: string) => {
     setIsSearching(true)
     setSearchError(null)
 
     try {
-      const info = await fetchWorldInfo(searchValue.trim())
-      // Update isBanned based on our local state (more accurate than server response)
+      const info = await fetchWorldInfo(worldName)
       setSelectedWorld({
         ...info,
         isBanned: checkWorldBanned(info.name)
       })
-      // Fetch the world's group if it exists
       try {
-        const group = await fetchSceneGroupByWorldName(authenticatedFetch, info.name)
-        setWorldGroup(group)
+        const placeResult = await fetchPlaceByWorldName(info.name)
+        setWorldPlace(placeResult || null)
       } catch {
-        setWorldGroup(null)
+        setWorldPlace(null)
       }
     } catch (err) {
-      setSearchError(err instanceof Error ? err.message : 'Failed to fetch world info')
+      // If we can't fetch info, create a minimal WorldInfo from the ban
+      // This can happen if the world was deleted after being banned
+      const ban = getWorldBan(worldName)
+      if (ban) {
+        setSelectedWorld({
+          name: worldName,
+          title: worldName,
+          description: null,
+          thumbnail: null,
+          owner: null,
+          tags: [],
+          sceneId: '',
+          isBanned: true,
+          banId: ban.id,
+          banReason: ban.reason || null,
+          banSceneId: ban.sceneId
+        })
+        try {
+          const placeResult = await fetchPlaceByWorldName(worldName)
+          setWorldPlace(placeResult || null)
+        } catch {
+          setWorldPlace(null)
+        }
+      } else {
+        setSearchError(err instanceof Error ? err.message : 'Failed to fetch world info')
+      }
     } finally {
       setIsSearching(false)
+    }
+  }, [checkWorldBanned, getWorldBan])
+
+  const handleSearch = (e: FormEvent) => {
+    e.preventDefault()
+    if (searchValue.trim()) {
+      loadWorld(searchValue.trim())
     }
   }
 
@@ -76,87 +130,38 @@ export const WorldsPage: FC = () => {
 
   const handleCloseSidebar = () => {
     setSelectedWorld(null)
-    setWorldGroup(null)
+    setWorldPlace(null)
     setSearchValue('')
     setSearchError(null)
   }
 
-  const handleWorldCardClick = async (worldName: string) => {
-    setIsSearching(true)
-    setSearchError(null)
+  const handleWorldCardClick = (worldName: string) => {
     setSearchValue(worldName)
-
-    try {
-      const info = await fetchWorldInfo(worldName)
-      setSelectedWorld({
-        ...info,
-        isBanned: checkWorldBanned(info.name)
-      })
-      // Fetch the world's group if it exists
-      try {
-        const group = await fetchSceneGroupByWorldName(authenticatedFetch, info.name)
-        setWorldGroup(group)
-      } catch {
-        setWorldGroup(null)
-      }
-    } catch (err) {
-      // If we can't fetch info, create a minimal WorldInfo from the ban
-      // This can happen if the world was deleted after being banned
-      const ban = getWorldBan(worldName)
-      if (ban) {
-        setSelectedWorld({
-          name: worldName,
-          title: worldName,
-          description: null,
-          thumbnail: null,
-          owner: null,
-          tags: [],
-          sceneId: '',  // Unknown - world may have been deleted
-          isBanned: true,
-          banId: ban.id,
-          banReason: ban.reason || null,
-          banSceneId: ban.sceneId
-        })
-        // Also try to fetch group for banned worlds
-        try {
-          const group = await fetchSceneGroupByWorldName(authenticatedFetch, worldName)
-          setWorldGroup(group)
-        } catch {
-          setWorldGroup(null)
-        }
-      } else {
-        setSearchError(err instanceof Error ? err.message : 'Failed to fetch world info')
-      }
-    } finally {
-      setIsSearching(false)
-    }
+    loadWorld(worldName)
   }
 
   // Get ban info for the selected world
   const selectedWorldBan = selectedWorld ? getWorldBan(selectedWorld.name) : undefined
 
-  // Handle updating tags for an existing world group
-  const handleUpdateWorldTags = useCallback(async (_worldName: string, tags: string[]) => {
-    if (!worldGroup) return
-    await updateSceneGroup(authenticatedFetch, worldGroup.id, { tags })
-    setWorldGroup(prev => prev ? { ...prev, tags } : null)
-  }, [authenticatedFetch, worldGroup])
+  // Handle updating tags for an existing world place
+  const handleUpdateWorldTags = useCallback(async (tags: string[]) => {
+    if (!worldPlace) return
+    const updated = await updatePlace(authenticatedFetch, worldPlace.id, { tags })
+    setWorldPlace(updated)
+  }, [authenticatedFetch, worldPlace])
 
-  // Handle creating a new group for a world with tags
-  const handleCreateWorldGroup = useCallback(async (
+  // Handle creating a new place for a world with tags
+  const handleCreateWorldPlace = useCallback(async (
     worldName: string,
-    name: string,
     tags: string[]
-  ): Promise<SceneGroup | null> => {
-    const color = GROUP_COLORS[0] // Default color for worlds
-    const newGroup = await createSceneGroup(authenticatedFetch, {
-      name,
+  ): Promise<Place | null> => {
+    const newPlace = await createPlace(authenticatedFetch, {
+      type: 'world',
       worldName,
       tags,
-      color,
     })
-    setWorldGroup(newGroup)
-    return newGroup
+    setWorldPlace(newPlace)
+    return newPlace
   }, [authenticatedFetch])
 
   return (
@@ -213,18 +218,44 @@ export const WorldsPage: FC = () => {
             </div>
           )}
         </div>
+
+        <div className="worlds-list-section">
+          <h3>Tagged Worlds ({taggedWorlds.length})</h3>
+          {isLoadingTagged ? (
+            <p className="worlds-empty-state">Loading tagged worlds...</p>
+          ) : taggedWorlds.length === 0 ? (
+            <p className="worlds-empty-state">No tagged worlds yet.</p>
+          ) : (
+            <div className="worlds-cards-grid">
+              {taggedWorlds.map(place => (
+                <div
+                  key={place.id}
+                  className="world-card world-card-tagged"
+                  onClick={() => handleWorldCardClick(place.worldName!)}
+                >
+                  <div className="world-card-name">{place.worldName}</div>
+                  <div className="world-card-tags">
+                    {place.tags.map(tag => (
+                      <span key={tag} className="world-card-tag">{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {selectedWorld && (
         <WorldDetailSidebar
           world={selectedWorld}
           ban={selectedWorldBan}
-          worldGroup={worldGroup}
+          worldPlace={worldPlace}
           onClose={handleCloseSidebar}
           onBanToggle={handleBanToggle}
           isBanning={isBanning}
           onUpdateWorldTags={handleUpdateWorldTags}
-          onCreateWorldGroup={handleCreateWorldGroup}
+          onCreateWorldPlace={handleCreateWorldPlace}
         />
       )}
     </div>

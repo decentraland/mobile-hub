@@ -9,6 +9,53 @@ import {
 } from './constants';
 
 /**
+ * Parse a "x,y" position string into {x, y} object
+ */
+export function parsePosition(position: string): ParcelCoord {
+  const [x, y] = position.split(',').map(Number);
+  return { x, y };
+}
+
+/**
+ * Format {x, y} coordinates to "x,y" string
+ */
+export function formatPosition(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+/**
+ * Format a ParcelCoord to "x,y" string
+ */
+export function formatParcelCoord(parcel: ParcelCoord): string {
+  return `${parcel.x},${parcel.y}`;
+}
+
+/**
+ * Check if a position string is valid
+ */
+export function isValidPosition(position: string): boolean {
+  const parts = position.split(',');
+  if (parts.length !== 2) return false;
+  const x = Number(parts[0]);
+  const y = Number(parts[1]);
+  return !isNaN(x) && !isNaN(y);
+}
+
+/**
+ * Convert an array of position strings to ParcelCoord objects
+ */
+export function positionsToCoords(positions: string[]): ParcelCoord[] {
+  return positions.map(parsePosition);
+}
+
+/**
+ * Convert an array of ParcelCoord objects to position strings
+ */
+export function coordsToPositions(coords: ParcelCoord[]): string[] {
+  return coords.map(formatParcelCoord);
+}
+
+/**
  * Convert parcel coordinates to tile index
  */
 export function parcelToTileIndex(parcelX: number, parcelY: number): TileCoord {

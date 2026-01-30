@@ -1,4 +1,4 @@
-import { useGroupsState, useGroupsDispatch } from '../context/useGroupsHooks';
+import { usePlacesState, usePlacesDispatch } from '../context/usePlacesHooks';
 import type { MapMode } from '../types';
 
 interface ModeOption {
@@ -9,12 +9,12 @@ interface ModeOption {
 
 const MODES: ModeOption[] = [
   { mode: 'view', icon: '👁', label: 'View' },
-  { mode: 'groups', icon: '▦', label: 'Scene Groups' },
+  { mode: 'groups', icon: '▦', label: 'Places' },
 ];
 
 export function MapToolsBar() {
-  const { mode } = useGroupsState();
-  const dispatch = useGroupsDispatch();
+  const { mode } = usePlacesState();
+  const dispatch = usePlacesDispatch();
 
   const handleModeSelect = (newMode: MapMode) => {
     dispatch({ type: 'SET_MODE', payload: newMode });

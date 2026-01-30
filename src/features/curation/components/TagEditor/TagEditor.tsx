@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { FC } from 'react'
-import { fetchAllTags } from '../../../map/api/sceneGroupsApi'
+import { fetchAllTags } from '../../../map/api/placesApi'
 import type { Tag } from '../../../map/types'
 import styles from './TagEditor.module.css'
 

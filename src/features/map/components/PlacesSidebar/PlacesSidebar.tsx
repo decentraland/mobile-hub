@@ -1,26 +1,27 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useGroupsState, useGroupsDispatch } from '../../context/useGroupsHooks';
-import { GroupsList } from './GroupsList';
-import { GroupForm } from './GroupForm';
-import type { SceneGroup } from '../../types';
-import styles from './GroupsSidebar.module.css';
+import { usePlacesState, usePlacesDispatch } from '../../context/usePlacesHooks';
+import { PlacesList } from './PlacesList';
+import { PlaceForm } from './PlaceForm';
+import type { Place } from '../../types';
+import styles from './PlacesSidebar.module.css';
 
 type SidebarMode = 'list' | 'create' | 'edit';
 
-interface GroupsSidebarProps {
+interface PlacesSidebarProps {
   onExitSelectMode?: () => void;
   onEnterSelectMode?: () => void;
   isSelectMode?: boolean;
   initialMode?: SidebarMode;
-  checkIsBanned?: (group: SceneGroup) => boolean;
-  onBanToggle?: (group: SceneGroup, shouldBan: boolean) => void;
+  checkIsBanned?: (place: Place) => boolean;
+  onBanToggle?: (place: Place, shouldBan: boolean) => void;
 }
 
-export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMode = false, initialMode = 'list', checkIsBanned, onBanToggle }: GroupsSidebarProps) {
-  const { sidebarOpen, selectedParcels, groups, editingGroupId } = useGroupsState();
-  const dispatch = useGroupsDispatch();
+export function PlacesSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMode = false, initialMode = 'list', checkIsBanned, onBanToggle }: PlacesSidebarProps) {
+  const { sidebarOpen, selectedParcels, places, editingPlaceId } = usePlacesState();
+  const dispatch = usePlacesDispatch();
   const [mode, setMode] = useState<SidebarMode>(initialMode);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Sync mode when initialMode changes
   useEffect(() => {
@@ -40,12 +41,12 @@ export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMod
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  const editingGroup = useMemo(() => {
-    if (mode === 'edit' && editingGroupId) {
-      return groups.find((g) => g.id === editingGroupId) || null;
+  const editingPlace = useMemo(() => {
+    if (mode === 'edit' && editingPlaceId) {
+      return places.find((p) => p.id === editingPlaceId) || null;
     }
     return null;
-  }, [mode, editingGroupId, groups]);
+  }, [mode, editingPlaceId, places]);
 
   const handleToggle = () => {
     dispatch({ type: 'TOGGLE_SIDEBAR' });
@@ -61,8 +62,8 @@ export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMod
     onEnterSelectMode?.();
   };
 
-  const handleEditGroup = (group: SceneGroup) => {
-    dispatch({ type: 'SET_EDITING_GROUP', payload: group.id });
+  const handleEditPlace = (place: Place) => {
+    dispatch({ type: 'SET_EDITING_PLACE', payload: place.id });
     setMode('edit');
     // Enter select mode so user can add more parcels
     onEnterSelectMode?.();
@@ -70,14 +71,14 @@ export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMod
 
   const handleCancel = () => {
     setMode('list');
-    dispatch({ type: 'SET_EDITING_GROUP', payload: null });
+    dispatch({ type: 'SET_EDITING_PLACE', payload: null });
     dispatch({ type: 'CLEAR_SELECTION' });
     onExitSelectMode?.();
   };
 
   const handleSave = () => {
     setMode('list');
-    dispatch({ type: 'SET_EDITING_GROUP', payload: null });
+    dispatch({ type: 'SET_EDITING_PLACE', payload: null });
     dispatch({ type: 'CLEAR_SELECTION' });
     onExitSelectMode?.();
   };
@@ -99,11 +100,11 @@ export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMod
   const getTitle = () => {
     switch (mode) {
       case 'create':
-        return 'Create Group';
+        return 'Create Place';
       case 'edit':
-        return 'Edit Group';
+        return 'Edit Place';
       default:
-        return 'Scene Groups';
+        return 'Places';
     }
   };
 
@@ -119,6 +120,13 @@ export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMod
       <div className={styles.content}>
         {mode === 'list' && (
           <>
+            <input
+              type="text"
+              className={styles.searchInput}
+              placeholder="Search places..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
             {selectedParcels.length > 0 && (
               <div className={styles.selectionInfo}>
                 <p className={styles.selectionInfoText}>
@@ -126,13 +134,13 @@ export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMod
                 </p>
               </div>
             )}
-            <GroupsList onEditGroup={handleEditGroup} checkIsBanned={checkIsBanned} onBanToggle={onBanToggle} />
+            <PlacesList onEditPlace={handleEditPlace} checkIsBanned={checkIsBanned} onBanToggle={onBanToggle} searchQuery={searchQuery} />
           </>
         )}
 
         {(mode === 'create' || mode === 'edit') && (
-          <GroupForm
-            editingGroup={editingGroup}
+          <PlaceForm
+            editingPlace={editingPlace}
             selectedParcels={selectedParcels}
             onCancel={handleCancel}
             onSave={handleSave}
@@ -155,7 +163,7 @@ export function GroupsSidebar({ onExitSelectMode, onEnterSelectMode, isSelectMod
                   className={`${styles.button} ${styles.buttonPrimary}`}
                   onClick={handleCreateClick}
                 >
-                  Create Group
+                  Create Place
                 </button>
               </>
             ) : (
