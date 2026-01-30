@@ -133,6 +133,7 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
         const place: Place = existingPlace || {
           id: `temp-${parcel.x}-${parcel.y}`,
           type: 'scene',
+          name: 'place',
           basePosition: formatPosition(parcel.x, parcel.y),
           worldName: null,
           sceneId: null,
