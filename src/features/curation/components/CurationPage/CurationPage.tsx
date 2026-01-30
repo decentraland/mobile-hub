@@ -4,6 +4,7 @@ import type { SceneGroup, Tag } from '../../../map/types'
 import { fetchAllTags, fetchSceneGroupsByTags } from '../../../map/api/sceneGroupsApi'
 import { TagFilterBar } from '../TagFilterBar/TagFilterBar'
 import { CuratedItemsList } from '../CuratedItemsList/CuratedItemsList'
+import { exportAllowedIOSToCSV } from '../../utils/csvExport'
 import styles from './CurationPage.module.css'
 
 interface CurationPageProps {
@@ -17,6 +18,8 @@ export const CurationPage: FC<CurationPageProps> = ({ onViewGroup }) => {
   const [isLoadingTags, setIsLoadingTags] = useState(true)
   const [isLoadingGroups, setIsLoadingGroups] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null)
 
   // Load all tags on mount
   useEffect(() => {
@@ -91,15 +94,34 @@ export const CurationPage: FC<CurationPageProps> = ({ onViewGroup }) => {
     setSelectedTags([])
   }, [])
 
+  const handleExport = useCallback(async () => {
+    try {
+      setIsExporting(true)
+      setExportProgress(null)
+      setError(null)
+
+      // Fetch all groups with allowed_ios tag
+      const allowedGroups = await fetchSceneGroupsByTags(['allowed_ios'])
+
+      if (allowedGroups.length === 0) {
+        setError('No items with allowed_ios tag found')
+        return
+      }
+
+      // Export to CSV with progress tracking
+      await exportAllowedIOSToCSV(allowedGroups, (current, total) => {
+        setExportProgress({ current, total })
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export failed')
+    } finally {
+      setIsExporting(false)
+      setExportProgress(null)
+    }
+  }, [])
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>Curation</h1>
-        <p className={styles.subtitle}>
-          Manage tagged scenes, groups, and worlds
-        </p>
-      </div>
-
       {isLoadingTags ? (
         <div className={styles.loading}>Loading tags...</div>
       ) : error ? (
@@ -111,6 +133,19 @@ export const CurationPage: FC<CurationPageProps> = ({ onViewGroup }) => {
             selectedTags={selectedTags}
             onTagToggle={handleTagToggle}
             onClear={handleClearTags}
+            exportButton={
+              <button
+                className={styles.exportButton}
+                onClick={handleExport}
+                disabled={isExporting}
+              >
+                {isExporting
+                  ? exportProgress
+                    ? `Exporting ${exportProgress.current}/${exportProgress.total}...`
+                    : 'Preparing...'
+                  : 'Export iOS CSV'}
+              </button>
+            }
           />
 
           <CuratedItemsList

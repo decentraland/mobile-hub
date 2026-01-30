@@ -1,4 +1,4 @@
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import type { Tag } from '../../../map/types'
 import styles from './TagFilterBar.module.css'
 
@@ -7,6 +7,7 @@ interface TagFilterBarProps {
   selectedTags: string[]
   onTagToggle: (tagName: string) => void
   onClear: () => void
+  exportButton?: ReactNode
 }
 
 // Suggested/common tags to highlight
@@ -16,7 +17,8 @@ export const TagFilterBar: FC<TagFilterBarProps> = ({
   tags,
   selectedTags,
   onTagToggle,
-  onClear
+  onClear,
+  exportButton
 }) => {
   // Sort tags: suggested first, then alphabetically
   const sortedTags = [...tags].sort((a, b) => {
@@ -58,6 +60,8 @@ export const TagFilterBar: FC<TagFilterBarProps> = ({
           Clear ({selectedTags.length})
         </button>
       )}
+
+      {exportButton}
     </div>
   )
 }
