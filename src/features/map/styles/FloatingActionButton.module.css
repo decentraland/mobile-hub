@@ -73,3 +73,18 @@
 .fabBanned:hover {
   background: rgba(255, 68, 68, 0.2);
 }
+
+.fabSmall {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.fabInactive {
+  opacity: 0.5;
+  background: rgba(28, 28, 32, 0.7);
+}
+
+.fabInactive:hover {
+  opacity: 0.8;
+}

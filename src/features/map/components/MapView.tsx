@@ -46,6 +46,7 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
   const [highlightedParcels, setHighlightedParcels] = useState<ParcelCoord[]>([]);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('list');
   const [bansSidebarOpen, setBansSidebarOpen] = useState(false);
+  const [overlayVisible, setOverlayVisible] = useState(true);
 
   // Find which group a parcel belongs to
   const findGroupByParcel = useCallback(
@@ -296,7 +297,7 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
   return (
     <div className={styles.mapView}>
       <MapCanvas onParcelClick={handleParcelClick} />
-      <GroupsOverlay />
+      <GroupsOverlay visible={overlayVisible} />
       {isSelectMode && <SelectionOverlay />}
       {highlightedParcels.length > 0 && <SceneHighlightOverlay parcels={highlightedParcels} />}
       <MapControls />
@@ -340,6 +341,8 @@ function MapViewContent({ onParcelClick }: { onParcelClick?: (parcel: ParcelCoor
       <FloatingActionButton
         onGroupsClick={handleLayersClick}
         onBansClick={handleBansClick}
+        onToggleOverlay={() => setOverlayVisible(!overlayVisible)}
+        overlayVisible={overlayVisible}
         groupCount={groups.length}
         banCount={bans.filter(b => !b.worldName).length}
       />

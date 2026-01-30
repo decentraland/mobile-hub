@@ -1,6 +1,6 @@
-import type { SceneGroup, ParcelCoord } from '../../map/types'
-import { fetchSceneByParcel, type SceneInfo } from '../../map/api/sceneApi'
-import { fetchWorldInfo, type WorldInfo } from '../../map/api/worldsApi'
+import type { SceneGroup } from '../../map/types'
+import { fetchSceneByParcel } from '../../map/api/sceneApi'
+import { fetchWorldInfo } from '../../map/api/worldsApi'
 
 export interface ExportRow {
   title: string

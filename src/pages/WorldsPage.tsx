@@ -136,7 +136,7 @@ export const WorldsPage: FC = () => {
   const selectedWorldBan = selectedWorld ? getWorldBan(selectedWorld.name) : undefined
 
   // Handle updating tags for an existing world group
-  const handleUpdateWorldTags = useCallback(async (worldName: string, tags: string[]) => {
+  const handleUpdateWorldTags = useCallback(async (_worldName: string, tags: string[]) => {
     if (!worldGroup) return
     await updateSceneGroup(authenticatedFetch, worldGroup.id, { tags })
     setWorldGroup(prev => prev ? { ...prev, tags } : null)

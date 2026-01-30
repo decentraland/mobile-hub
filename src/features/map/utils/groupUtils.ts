@@ -64,6 +64,7 @@ export function createGroup(
     color: options?.color || getNextColor(existingGroups),
     tags: options?.tags || [],
     parcels: [...parcels],
+    worldName: null,
     createdAt: now,
     updatedAt: now,
   };
