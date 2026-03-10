@@ -1,4 +1,3 @@
-const ASSET_BUNDLE_REGISTRY = 'https://asset-bundle-registry.decentraland.org'
 const WORLDS_CONTENT_SERVER = 'https://worlds-content-server.decentraland.org'
 
 export interface WorldInfo {
@@ -13,6 +12,12 @@ export interface WorldInfo {
   banId: string | null
   banReason: string | null
   banSceneId: string | null  // Scene ID at ban time (for detecting redeploys)
+}
+
+interface WorldAboutResponse {
+  configurations?: {
+    scenesUrn?: string[]
+  }
 }
 
 interface WorldEntity {
@@ -36,32 +41,46 @@ interface WorldEntity {
 }
 
 /**
- * Fetch world info from asset-bundle-registry
+ * Fetch world info from worlds-content-server via /about endpoint
  */
 export async function fetchWorldInfo(worldName: string): Promise<WorldInfo> {
   let normalizedName = worldName.trim().toLowerCase()
 
-  // Append .dcl.eth if not already present
   if (!normalizedName.endsWith('.dcl.eth') && !normalizedName.endsWith('.eth')) {
     normalizedName = `${normalizedName}.dcl.eth`
   }
 
-  const response = await fetch(`${ASSET_BUNDLE_REGISTRY}/entities/active`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pointers: [normalizedName] })
-  })
+  const aboutResponse = await fetch(
+    `${WORLDS_CONTENT_SERVER}/world/${normalizedName}/about`
+  )
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch world info: ${response.status}`)
-  }
-
-  const entities: WorldEntity[] = await response.json()
-  const entity = entities[0]
-
-  if (!entity) {
+  if (!aboutResponse.ok) {
     throw new Error(`World "${normalizedName}" not found`)
   }
+
+  const aboutData: WorldAboutResponse = await aboutResponse.json()
+  const scenesUrn = aboutData.configurations?.scenesUrn
+
+  if (!scenesUrn || scenesUrn.length === 0) {
+    throw new Error(`World "${normalizedName}" not found`)
+  }
+
+  const urn = scenesUrn[0]
+  const hashMatch = urn.match(/urn:decentraland:entity:([^?]+)/)
+  if (!hashMatch) {
+    throw new Error(`Invalid scene URN format for "${normalizedName}"`)
+  }
+  const entityHash = hashMatch[1]
+
+  const entityResponse = await fetch(
+    `${WORLDS_CONTENT_SERVER}/contents/${entityHash}`
+  )
+
+  if (!entityResponse.ok) {
+    throw new Error(`Failed to fetch entity for "${normalizedName}": ${entityResponse.status}`)
+  }
+
+  const entity: WorldEntity = await entityResponse.json()
 
   const metadata = entity.metadata
   const title = metadata?.display?.title || metadata?.worldConfiguration?.name || normalizedName
@@ -69,16 +88,13 @@ export async function fetchWorldInfo(worldName: string): Promise<WorldInfo> {
   const owner = metadata?.owner || null
   const tags = metadata?.tags || []
 
-  // Build thumbnail URL if available
-  let thumbnail: string | null = null
-  if (metadata?.display?.navmapThumbnail) {
-    const thumbnailHash = entity.content?.find(
-      c => c.file === metadata.display?.navmapThumbnail
-    )?.hash
-    if (thumbnailHash) {
-      thumbnail = `${WORLDS_CONTENT_SERVER}/contents/${thumbnailHash}`
-    }
-  }
+  const thumbnailFile = metadata?.display?.navmapThumbnail
+  const thumbnailHash = thumbnailFile
+    ? entity.content?.find(c => c.file === thumbnailFile)?.hash
+    : undefined
+  const thumbnail = thumbnailHash
+    ? `${WORLDS_CONTENT_SERVER}/contents/${thumbnailHash}`
+    : null
 
   return {
     name: normalizedName,
@@ -87,7 +103,7 @@ export async function fetchWorldInfo(worldName: string): Promise<WorldInfo> {
     thumbnail,
     owner,
     tags,
-    sceneId: entity.id,
+    sceneId: entityHash,
     isBanned: false, // Will be updated by caller with local ban state
     banId: null,
     banReason: null,
