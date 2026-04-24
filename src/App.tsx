@@ -8,6 +8,7 @@ import { AppTabs, type AppView } from './components/AppTabs'
 import { MapPage } from './pages/MapPage'
 import { WorldsPage } from './pages/WorldsPage'
 import { CurationPage } from './pages/CurationPage'
+import { VersionsPage } from './pages/VersionsPage'
 import { config } from './config'
 
 const authConfig = {
@@ -30,6 +31,7 @@ function App() {
           {activeView === 'map' && <MapPage />}
           {activeView === 'worlds' && <WorldsPage />}
           {activeView === 'curation' && <CurationPage />}
+          {activeView === 'versions' && <VersionsPage />}
         </BansProvider>
       </AuthProvider>
     </BrowserRouter>
