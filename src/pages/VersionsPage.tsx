@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState, type FC } from 'react'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
 import { useAuth } from '../contexts/auth'
+import { isDevMode } from '../utils/devIdentity'
 import {
   fetchAppVersions,
-  fetchGodotExplorerVersions,
+  fetchGodotExplorerVersion,
   updateAppVersions,
   type AppVersions,
-  type BranchVersions,
+  type BranchVersion,
   type GodotExplorerBranch,
-  type PlatformCurrentVersion,
   type PlatformVersions,
 } from '../features/versions/api'
 import './VersionsPage.css'
@@ -64,6 +64,7 @@ function validatePlatform(draft: { min: string; rec: string }): {
 export const VersionsPage: FC = () => {
   const authenticatedFetch = useAuthenticatedFetch()
   const { isSignedIn } = useAuth()
+  const canEdit = isSignedIn || isDevMode()
 
   const [current, setCurrent] = useState<AppVersions | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -73,8 +74,8 @@ export const VersionsPage: FC = () => {
   const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT)
   const [confirm, setConfirm] = useState<ConfirmState>({ status: 'idle' })
 
-  const [godotMain, setGodotMain] = useState<BranchVersions | null>(null)
-  const [godotRelease, setGodotRelease] = useState<BranchVersions | null>(null)
+  const [godotMain, setGodotMain] = useState<BranchVersion | null>(null)
+  const [godotRelease, setGodotRelease] = useState<BranchVersion | null>(null)
   const [godotError, setGodotError] = useState<string | null>(null)
 
   const loadAppVersions = useCallback(async () => {
@@ -100,7 +101,7 @@ export const VersionsPage: FC = () => {
 
     async function loadBranch(branch: GodotExplorerBranch) {
       try {
-        const data = await fetchGodotExplorerVersions(branch)
+        const data = await fetchGodotExplorerVersion(branch)
         if (cancelled) return
         if (branch === 'main') setGodotMain(data)
         else setGodotRelease(data)
@@ -196,8 +197,11 @@ export const VersionsPage: FC = () => {
           <h1>App Versions</h1>
           <p>
             Force and recommended versions served by <code>GET /app-versions</code>.
+            Numbers follow the godot-explorer encoding{' '}
+            <code>major × 100000 + minor × 100 + patch</code> (e.g.{' '}
+            <code>0.64.3</code> → <code>6403</code>).
           </p>
-          {!isSignedIn && (
+          {!canEdit && (
             <div className="versions-warning">
               Sign in with an allowed wallet to edit versions.
             </div>
@@ -228,7 +232,7 @@ export const VersionsPage: FC = () => {
               current={current.ios}
               draft={draft.ios}
               isEditing={editingPlatform === 'ios'}
-              disabled={!isSignedIn}
+              disabled={!canEdit}
               validationError={editingPlatform === 'ios' ? iosValidation.error : undefined}
               canSave={editingPlatform === 'ios' && canSave}
               onStartEdit={() => handleStartEdit('ios')}
@@ -242,7 +246,7 @@ export const VersionsPage: FC = () => {
               current={current.android}
               draft={draft.android}
               isEditing={editingPlatform === 'android'}
-              disabled={!isSignedIn}
+              disabled={!canEdit}
               validationError={
                 editingPlatform === 'android' ? androidValidation.error : undefined
               }
@@ -353,14 +357,10 @@ const PlatformCard: FC<PlatformCardProps> = ({
 }
 
 const GodotExplorerBanner: FC<{
-  main: BranchVersions | null
-  release: BranchVersions | null
+  main: BranchVersion | null
+  release: BranchVersion | null
   error: string | null
 }> = ({ main, release, error }) => {
-  const mainNumber = main?.ios.versionNumber ?? main?.android.versionNumber ?? null
-  const releaseNumber =
-    release?.ios.versionNumber ?? release?.android.versionNumber ?? null
-
   return (
     <section className="godot-banner">
       <div className="godot-banner-label">
@@ -376,17 +376,13 @@ const GodotExplorerBanner: FC<{
       <div className="godot-banner-branches">
         <GodotBranchPill
           branchLabel="main"
-          versionNumber={mainNumber}
-          ios={main?.ios ?? null}
-          android={main?.android ?? null}
+          branch={main}
           error={error}
           loaded={!!main}
         />
         <GodotBranchPill
           branchLabel="release"
-          versionNumber={releaseNumber}
-          ios={release?.ios ?? null}
-          android={release?.android ?? null}
+          branch={release}
           error={error}
           loaded={!!release}
         />
@@ -397,15 +393,13 @@ const GodotExplorerBanner: FC<{
 
 const GodotBranchPill: FC<{
   branchLabel: string
-  versionNumber: number | null
-  ios: PlatformCurrentVersion | null
-  android: PlatformCurrentVersion | null
+  branch: BranchVersion | null
   error: string | null
   loaded: boolean
-}> = ({ branchLabel, versionNumber, ios, android, error, loaded }) => {
+}> = ({ branchLabel, branch, error, loaded }) => {
   const renderStatus = () => {
     if (loaded) {
-      return <strong>{versionNumber ?? '—'}</strong>
+      return <strong>{branch?.versionNumber ?? '—'}</strong>
     }
     if (error) {
       return <span className="godot-branch-error">unavailable</span>
@@ -413,17 +407,12 @@ const GodotBranchPill: FC<{
     return <span className="godot-branch-loading">loading…</span>
   }
 
-  const displayParts = [
-    ios?.displayVersion ? `iOS ${ios.displayVersion}` : null,
-    android?.displayVersion ? `Android ${android.displayVersion}` : null,
-  ].filter(Boolean) as string[]
-
   return (
     <div className="godot-branch-pill">
       <span className="godot-branch-name">{branchLabel}</span>
       <span className="godot-branch-number">{renderStatus()}</span>
-      {displayParts.length > 0 && (
-        <span className="godot-branch-display">{displayParts.join(' · ')}</span>
+      {branch?.semver && (
+        <span className="godot-branch-display">v{branch.semver}</span>
       )}
     </div>
   )
