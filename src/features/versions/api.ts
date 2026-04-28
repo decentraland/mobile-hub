@@ -4,7 +4,7 @@ const API_BASE = config.get('MOBILE_BFF_URL')
 
 const GODOT_EXPLORER_RAW =
   'https://raw.githubusercontent.com/decentraland/godot-explorer'
-const GODOT_EXPORT_PRESETS_PATH = 'godot/export_presets.cfg'
+const GODOT_CARGO_TOML_PATH = 'lib/Cargo.toml'
 
 export interface PlatformVersions {
   minimalRequiredVersionNumber: number
@@ -51,107 +51,69 @@ export async function updateAppVersions(
   return json.data
 }
 
-export interface PlatformCurrentVersion {
+export interface BranchVersion {
   versionNumber: number | null
-  displayVersion: string | null
-}
-
-export interface BranchVersions {
-  ios: PlatformCurrentVersion
-  android: PlatformCurrentVersion
+  semver: string | null
 }
 
 export type GodotExplorerBranch = 'main' | 'release'
 
 /**
- * Parse export_presets.cfg into section → key/value map.
- * The file uses INI-like syntax with [section.name] headers.
+ * Encode a semver "major.minor.patch" (with optional "-suffix") into the
+ * monotonic integer scheme used by godot-explorer's version_gate:
+ *   major * 100000 + minor * 100 + patch    (minor/patch clamped to 0–99)
+ * Must stay in sync with `_parse_version_number` in
+ * godot-explorer/godot/src/version_gate.gd.
+ * Returns null on parse failure.
  */
-function parseExportPresets(text: string): Record<string, Record<string, string>> {
-  const sections: Record<string, Record<string, string>> = {}
-  let currentSection: string | null = null
+export function encodeSemverToVersionNumber(full: string): number | null {
+  const base = full.split('-')[0]
+  const parts = base.split('.')
+  if (parts.length < 2) return null
+  const major = Number(parts[0])
+  const minorRaw = Number(parts[1])
+  const patchRaw = parts.length >= 3 ? Number(parts[2]) : 0
+  if (!Number.isInteger(major) || !Number.isInteger(minorRaw) || !Number.isInteger(patchRaw)) {
+    return null
+  }
+  const minor = Math.min(Math.max(minorRaw, 0), 99)
+  const patch = Math.min(Math.max(patchRaw, 0), 99)
+  return major * 100000 + minor * 100 + patch
+}
 
+function extractSemverFromCargoToml(text: string): string | null {
+  let inPackage = false
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim()
-    if (!line || line.startsWith(';') || line.startsWith('#')) continue
-
+    if (!line || line.startsWith('#')) continue
     const sectionMatch = line.match(/^\[(.+)\]$/)
     if (sectionMatch) {
-      currentSection = sectionMatch[1]
-      sections[currentSection] ??= {}
+      inPackage = sectionMatch[1] === 'package'
       continue
     }
-
-    if (!currentSection) continue
-
-    const eqIdx = line.indexOf('=')
-    if (eqIdx === -1) continue
-
-    const key = line.slice(0, eqIdx).trim()
-    const value = line.slice(eqIdx + 1).trim()
-    sections[currentSection][key] = value
+    if (!inPackage) continue
+    const m = line.match(/^version\s*=\s*"([^"]+)"/)
+    if (m) return m[1]
   }
-
-  return sections
+  return null
 }
 
-function stripQuotes(value: string | undefined): string | null {
-  if (value === undefined) return null
-  const m = value.match(/^"(.*)"$/)
-  return m ? m[1] : value
-}
-
-function parseIntOrNull(value: string | undefined): number | null {
-  if (value === undefined) return null
-  const unquoted = stripQuotes(value) ?? value
-  const n = parseInt(unquoted, 10)
-  return Number.isFinite(n) ? n : null
-}
-
-/**
- * Extract iOS + Android version info from export_presets.cfg text.
- * Assumes typical Godot preset layout with named "android" and "ios" platforms.
- */
-function extractVersionsFromPresets(text: string): BranchVersions {
-  const sections = parseExportPresets(text)
-
-  let android: PlatformCurrentVersion = { versionNumber: null, displayVersion: null }
-  let ios: PlatformCurrentVersion = { versionNumber: null, displayVersion: null }
-
-  for (const [sectionName, fields] of Object.entries(sections)) {
-    const platformName = stripQuotes(fields['name'])
-    if (!platformName) continue
-
-    const optionsSection = sections[`${sectionName}.options`] ?? {}
-
-    if (platformName === 'android') {
-      android = {
-        versionNumber: parseIntOrNull(optionsSection['version/code']),
-        displayVersion: stripQuotes(optionsSection['version/name']),
-      }
-    } else if (platformName === 'ios') {
-      ios = {
-        versionNumber: parseIntOrNull(optionsSection['application/version']),
-        displayVersion: stripQuotes(optionsSection['application/short_version']),
-      }
-    }
-  }
-
-  return { ios, android }
-}
-
-export async function fetchGodotExplorerVersions(
+export async function fetchGodotExplorerVersion(
   branch: GodotExplorerBranch
-): Promise<BranchVersions> {
-  const url = `${GODOT_EXPLORER_RAW}/${branch}/${GODOT_EXPORT_PRESETS_PATH}`
+): Promise<BranchVersion> {
+  const url = `${GODOT_EXPLORER_RAW}/${branch}/${GODOT_CARGO_TOML_PATH}`
   const response = await fetch(url, { cache: 'no-store' })
 
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch godot-explorer ${branch} export_presets.cfg (${response.status})`
+      `Failed to fetch godot-explorer ${branch} Cargo.toml (${response.status})`
     )
   }
 
   const text = await response.text()
-  return extractVersionsFromPresets(text)
+  const semver = extractSemverFromCargoToml(text)
+  return {
+    versionNumber: semver ? encodeSemverToVersionNumber(semver) : null,
+    semver,
+  }
 }
