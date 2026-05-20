@@ -19,6 +19,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm i -g npm@latest
       - name: Set package.json version,
         uses: decentraland/oddish-action@master
         with:
@@ -39,5 +42,3 @@ jobs:
           access: public
           gitlab-token: ${{ secrets.GITLAB_CDN_DEPLOYER_TOKEN }}
           gitlab-pipeline-url: ${{ secrets.GITLAB_CDN_DEPLOYER_URL }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
