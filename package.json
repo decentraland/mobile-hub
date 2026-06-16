@@ -34,5 +34,9 @@
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4"
   },
-  "homepage": ""
+  "homepage": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/decentraland/mobile-hub.git"
+  }
 }
