@@ -57,6 +57,8 @@ export const PlaceDetailSidebar: FC<PlaceDetailSidebarProps> = ({
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupColor, setNewGroupColor] = useState('#FF6B6B')
   const [isCreatingGroup, setIsCreatingGroup] = useState(false)
+  // Local state to track current tags (updates after successful save)
+  const [currentTags, setCurrentTags] = useState<string[]>(place.tags || [])
 
   // Color palette for groups
   const GROUP_COLORS = [
@@ -141,18 +143,25 @@ export const PlaceDetailSidebar: FC<PlaceDetailSidebarProps> = ({
     await onBanToggle?.(!isBanned, currentSceneId)
   }
 
+  // Sync local tags state when place prop changes
+  useEffect(() => {
+    setCurrentTags(place.tags || [])
+  }, [place.tags])
+
   // Initialize editing tags when tag editor opens
   useEffect(() => {
     if (showTagEditor) {
-      setEditingTags(place.tags || [])
+      setEditingTags(currentTags)
     }
-  }, [showTagEditor, place.tags])
+  }, [showTagEditor, currentTags])
 
   const handleSaveTags = async () => {
     if (onUpdateTags) {
       setIsSavingTags(true)
       try {
         await onUpdateTags(place.id, editingTags)
+        // Optimistically update local tags state to reflect the save
+        setCurrentTags(editingTags)
         setShowTagEditor(false)
       } catch (err) {
         console.error('Failed to update tags:', err)
@@ -340,8 +349,8 @@ export const PlaceDetailSidebar: FC<PlaceDetailSidebarProps> = ({
                 </div>
               ) : (
                 <div className={styles.tags}>
-                  {place.tags && place.tags.length > 0 ? (
-                    place.tags.map(tag => (
+                  {currentTags && currentTags.length > 0 ? (
+                    currentTags.map(tag => (
                       <span key={tag} className={styles.curationTag}>{tag}</span>
                     ))
                   ) : (
