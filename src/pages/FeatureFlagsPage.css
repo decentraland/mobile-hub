@@ -16,6 +16,13 @@
   margin-bottom: 24px;
 }
 
+.flags-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .flags-header h1 {
   color: rgba(255, 255, 255, 0.9);
   font-size: 24px;
@@ -81,13 +88,144 @@
 
 .flag-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 12px;
   padding: 16px 20px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
+}
+
+.flag-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.flag-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.flag-row-audit {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+}
+
+.flag-icon-button {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.flag-icon-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.flag-icon-button-danger:hover {
+  background: rgba(255, 68, 68, 0.15);
+  border-color: rgba(255, 68, 68, 0.4);
+  color: #ff6b6b;
+}
+
+.flag-description-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flag-description-editor textarea,
+.flag-create-field textarea,
+.flag-create-field input {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.flag-description-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.flag-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  background: rgba(0, 217, 255, 0.04);
+  border: 1px solid rgba(0, 217, 255, 0.2);
+  border-radius: 12px;
+}
+
+.flag-create-form h2 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.flag-create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flag-create-field > span {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+}
+
+.flag-create-enabled {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.flag-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.flags-diff-delete {
+  color: #ff6b6b;
+}
+
+.flags-button-danger {
+  padding: 8px 16px;
+  background: #e5484d;
+  border: 1px solid #e5484d;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.flags-button-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .flag-row-labels {
