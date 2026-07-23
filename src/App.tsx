@@ -9,6 +9,7 @@ import { MapPage } from './pages/MapPage'
 import { WorldsPage } from './pages/WorldsPage'
 import { CurationPage } from './pages/CurationPage'
 import { VersionsPage } from './pages/VersionsPage'
+import { FeatureFlagsPage } from './pages/FeatureFlagsPage'
 import { config } from './config'
 
 const authConfig = {
@@ -32,6 +33,7 @@ function App() {
           {activeView === 'worlds' && <WorldsPage />}
           {activeView === 'curation' && <CurationPage />}
           {activeView === 'versions' && <VersionsPage />}
+          {activeView === 'flags' && <FeatureFlagsPage />}
         </BansProvider>
       </AuthProvider>
     </BrowserRouter>

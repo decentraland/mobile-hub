@@ -12,6 +12,7 @@ dist
 public/README.md
 dist-ssr
 *.local
+coverage
 
 # Editor directories and files
 .vscode/*
