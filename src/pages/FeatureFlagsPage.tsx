@@ -9,13 +9,17 @@ import {
   updateFeatureFlag,
   deleteFeatureFlag,
   type FeatureFlag,
+  type FlagType,
 } from '../features/flags/api'
 import './FeatureFlagsPage.css'
 
 const FLAG_NAME_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
+// Mirrors the BFF validation: plain decimals only, no scientific notation
+const NUMBER_VALUE_REGEX = /^-?\d+(\.\d+)?$/
 
 type ConfirmAction =
   | { kind: 'toggle'; name: string; next: boolean }
+  | { kind: 'set-value'; name: string; from: string; next: string }
   | { kind: 'delete'; name: string }
 
 type ConfirmState =
@@ -32,6 +36,19 @@ function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`
 }
 
+function publicValueToFlag(name: string, value: boolean | string | number): FeatureFlag {
+  const type: FlagType = typeof value === 'boolean' ? 'on-off' : typeof value === 'number' ? 'number' : 'text'
+  return {
+    name,
+    type,
+    enabled: value === true,
+    value: typeof value === 'boolean' ? null : value,
+    description: null,
+    updatedAt: '',
+    updatedBy: null,
+  }
+}
+
 export const FeatureFlagsPage: FC = () => {
   const authenticatedFetch = useAuthenticatedFetch()
   const { isSignedIn } = useAuth()
@@ -42,6 +59,7 @@ export const FeatureFlagsPage: FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>({ status: 'idle' })
   const [editingName, setEditingName] = useState<string | null>(null)
+  const [editingValueName, setEditingValueName] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
 
   const loadFlags = useCallback(async () => {
@@ -52,17 +70,7 @@ export const FeatureFlagsPage: FC = () => {
         setFlags(sortByName(await fetchFeatureFlagsDetailed(authenticatedFetch)))
       } else {
         const map = await fetchFeatureFlags()
-        setFlags(
-          sortByName(
-            Object.entries(map).map(([name, enabled]) => ({
-              name,
-              enabled,
-              description: null,
-              updatedAt: '',
-              updatedBy: null,
-            }))
-          )
-        )
+        setFlags(sortByName(Object.entries(map).map(([name, value]) => publicValueToFlag(name, value))))
       }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load feature flags')
@@ -83,6 +91,13 @@ export const FeatureFlagsPage: FC = () => {
     setConfirm({ status: 'confirming', action: { kind: 'toggle', name: flag.name, next: !flag.enabled } })
   }
 
+  const handleRequestSetValue = (flag: FeatureFlag, next: string) => {
+    setConfirm({
+      status: 'confirming',
+      action: { kind: 'set-value', name: flag.name, from: String(flag.value ?? ''), next },
+    })
+  }
+
   const handleRequestDelete = (flag: FeatureFlag) => {
     setConfirm({ status: 'confirming', action: { kind: 'delete', name: flag.name } })
   }
@@ -95,6 +110,10 @@ export const FeatureFlagsPage: FC = () => {
       if (action.kind === 'toggle') {
         const updated = await updateFeatureFlag(authenticatedFetch, action.name, { enabled: action.next })
         replaceFlag(updated)
+      } else if (action.kind === 'set-value') {
+        const updated = await updateFeatureFlag(authenticatedFetch, action.name, { value: action.next })
+        replaceFlag(updated)
+        setEditingValueName(null)
       } else {
         await deleteFeatureFlag(authenticatedFetch, action.name)
         setFlags(prev => (prev ? prev.filter(f => f.name !== action.name) : prev))
@@ -136,7 +155,8 @@ export const FeatureFlagsPage: FC = () => {
             )}
           </div>
           <p>
-            Runtime toggles served by <code>GET /feature-flags</code>. Flag names match the
+            Runtime flags served by <code>GET /feature-flags</code>: on/off toggles, plus text
+            and number fields (e.g. <code>sentry-sample-rate</code>). Flag names match the
             godot-explorer deep-link params (e.g. <code>pulse</code>,{' '}
             <code>dual-channel</code>).
           </p>
@@ -173,8 +193,12 @@ export const FeatureFlagsPage: FC = () => {
                 flag={flag}
                 canEdit={canEdit}
                 isEditingDescription={editingName === flag.name}
+                isEditingValue={editingValueName === flag.name}
                 authenticatedFetch={authenticatedFetch}
                 onToggle={() => handleToggle(flag)}
+                onStartEditValue={() => setEditingValueName(flag.name)}
+                onCancelEditValue={() => setEditingValueName(null)}
+                onRequestSetValue={next => handleRequestSetValue(flag, next)}
                 onStartEditDescription={() => setEditingName(flag.name)}
                 onCancelEditDescription={() => setEditingName(null)}
                 onDescriptionSaved={handleDescriptionSaved}
@@ -202,8 +226,12 @@ const FlagRow: FC<{
   flag: FeatureFlag
   canEdit: boolean
   isEditingDescription: boolean
+  isEditingValue: boolean
   authenticatedFetch: AuthenticatedFetch
   onToggle: () => void
+  onStartEditValue: () => void
+  onCancelEditValue: () => void
+  onRequestSetValue: (next: string) => void
   onStartEditDescription: () => void
   onCancelEditDescription: () => void
   onDescriptionSaved: (updated: FeatureFlag) => void
@@ -212,8 +240,12 @@ const FlagRow: FC<{
   flag,
   canEdit,
   isEditingDescription,
+  isEditingValue,
   authenticatedFetch,
   onToggle,
+  onStartEditValue,
+  onCancelEditValue,
+  onRequestSetValue,
   onStartEditDescription,
   onCancelEditDescription,
   onDescriptionSaved,
@@ -222,7 +254,10 @@ const FlagRow: FC<{
   <section className="flag-row">
     <div className="flag-row-main">
       <div className="flag-row-labels">
-        <span className="flag-row-name">{flag.name}</span>
+        <span className="flag-row-name">
+          {flag.name}
+          {flag.type !== 'on-off' && <span className="flag-type-badge">{flag.type}</span>}
+        </span>
         {!isEditingDescription && flag.description && (
           <span className="flag-row-hint">{flag.description}</span>
         )}
@@ -253,20 +288,36 @@ const FlagRow: FC<{
             </button>
           </>
         )}
-        <button
-          role="switch"
-          aria-checked={flag.enabled}
-          aria-label={`Toggle ${flag.name}`}
-          className={`flag-switch ${flag.enabled ? 'flag-switch-on' : ''}`}
-          disabled={!canEdit}
-          title={canEdit ? `Turn ${flag.name} ${flag.enabled ? 'off' : 'on'}` : 'Sign in to edit'}
-          onClick={onToggle}
-        >
-          <span className="flag-switch-state">{flag.enabled ? 'ON' : 'OFF'}</span>
-          <span className="flag-switch-knob" />
-        </button>
+        {flag.type === 'on-off' ? (
+          <button
+            role="switch"
+            aria-checked={flag.enabled}
+            aria-label={`Toggle ${flag.name}`}
+            className={`flag-switch ${flag.enabled ? 'flag-switch-on' : ''}`}
+            disabled={!canEdit}
+            title={canEdit ? `Turn ${flag.name} ${flag.enabled ? 'off' : 'on'}` : 'Sign in to edit'}
+            onClick={onToggle}
+          >
+            <span className="flag-switch-state">{flag.enabled ? 'ON' : 'OFF'}</span>
+            <span className="flag-switch-knob" />
+          </button>
+        ) : (
+          <button
+            className="flag-value-chip"
+            aria-label={`Edit ${flag.name} value`}
+            disabled={!canEdit || isEditingValue}
+            title={canEdit ? `Edit ${flag.name} value` : 'Sign in to edit'}
+            onClick={onStartEditValue}
+          >
+            {String(flag.value ?? '')}
+          </button>
+        )}
       </div>
     </div>
+
+    {isEditingValue && (
+      <ValueEditor flag={flag} onSubmit={onRequestSetValue} onCancel={onCancelEditValue} />
+    )}
 
     {isEditingDescription && (
       <DescriptionEditor
@@ -278,6 +329,50 @@ const FlagRow: FC<{
     )}
   </section>
 )
+
+const ValueEditor: FC<{
+  flag: FeatureFlag
+  onSubmit: (next: string) => void
+  onCancel: () => void
+}> = ({ flag, onSubmit, onCancel }) => {
+  const [draft, setDraft] = useState(String(flag.value ?? ''))
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSave = () => {
+    if (flag.type === 'number' && !NUMBER_VALUE_REGEX.test(draft.trim())) {
+      setError('Value must be a plain decimal number (e.g. 1, 0.1)')
+      return
+    }
+    setError(null)
+    onSubmit(flag.type === 'number' ? draft.trim() : draft)
+  }
+
+  return (
+    <div className="flag-value-editor">
+      <input
+        aria-label={`Value for ${flag.name}`}
+        value={draft}
+        maxLength={500}
+        inputMode={flag.type === 'number' ? 'decimal' : 'text'}
+        placeholder={flag.type === 'number' ? '0.1' : 'Value served to clients'}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') handleSave()
+          if (e.key === 'Escape') onCancel()
+        }}
+      />
+      {error && <div className="flags-error">{error}</div>}
+      <div className="flag-value-editor-actions">
+        <button className="flags-button-secondary" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="flags-button-primary" onClick={handleSave}>
+          Save
+        </button>
+      </div>
+    </div>
+  )
+}
 
 const DescriptionEditor: FC<{
   flag: FeatureFlag
@@ -333,8 +428,10 @@ const CreateFlagForm: FC<{
   onCancel: () => void
 }> = ({ authenticatedFetch, onCreated, onCancel }) => {
   const [name, setName] = useState('')
+  const [type, setType] = useState<FlagType>('on-off')
   const [description, setDescription] = useState('')
   const [enabled, setEnabled] = useState(false)
+  const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -346,6 +443,10 @@ const CreateFlagForm: FC<{
       )
       return
     }
+    if (type === 'number' && !NUMBER_VALUE_REGEX.test(value.trim())) {
+      setError('Value must be a plain decimal number (e.g. 1, 0.1)')
+      return
+    }
 
     setSaving(true)
     setError(null)
@@ -353,7 +454,10 @@ const CreateFlagForm: FC<{
       const trimmedDescription = description.trim()
       const created = await createFeatureFlag(authenticatedFetch, {
         name: trimmedName,
-        enabled,
+        type,
+        ...(type === 'on-off'
+          ? { enabled }
+          : { value: type === 'number' ? value.trim() : value }),
         description: trimmedDescription.length > 0 ? trimmedDescription : null,
       })
       onCreated(created)
@@ -377,6 +481,18 @@ const CreateFlagForm: FC<{
         />
       </label>
       <label className="flag-create-field">
+        <span>Type</span>
+        <select
+          aria-label="Flag type"
+          value={type}
+          onChange={e => setType(e.target.value as FlagType)}
+        >
+          <option value="on-off">ON/OFF</option>
+          <option value="text">Text</option>
+          <option value="number">Number</option>
+        </select>
+      </label>
+      <label className="flag-create-field">
         <span>Description</span>
         <textarea
           aria-label="Flag description"
@@ -387,14 +503,28 @@ const CreateFlagForm: FC<{
           onChange={e => setDescription(e.target.value)}
         />
       </label>
-      <label className="flag-create-enabled">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={e => setEnabled(e.target.checked)}
-        />
-        <span>Enabled from the start</span>
-      </label>
+      {type === 'on-off' ? (
+        <label className="flag-create-enabled">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={e => setEnabled(e.target.checked)}
+          />
+          <span>Enabled from the start</span>
+        </label>
+      ) : (
+        <label className="flag-create-field">
+          <span>Value</span>
+          <input
+            aria-label="Flag value"
+            value={value}
+            maxLength={500}
+            inputMode={type === 'number' ? 'decimal' : 'text'}
+            placeholder={type === 'number' ? '0.1' : 'Value served to clients'}
+            onChange={e => setValue(e.target.value)}
+          />
+        </label>
+      )}
       {error && <div className="flags-error">{error}</div>}
       <div className="flag-create-actions">
         <button className="flags-button-secondary" onClick={onCancel} disabled={saving}>
@@ -435,6 +565,12 @@ const ConfirmDialog: FC<{
               <span className="flags-diff-from">{action.next ? 'OFF' : 'ON'}</span>
               <span className="flags-diff-arrow">→</span>
               <span className="flags-diff-to">{action.next ? 'ON' : 'OFF'}</span>
+            </span>
+          ) : action.kind === 'set-value' ? (
+            <span className="flags-diff-value">
+              <span className="flags-diff-from">{action.from}</span>
+              <span className="flags-diff-arrow">→</span>
+              <span className="flags-diff-to">{action.next}</span>
             </span>
           ) : (
             <span className="flags-diff-value flags-diff-delete">will be removed</span>

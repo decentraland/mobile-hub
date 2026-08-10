@@ -14,7 +14,9 @@ function jsonResponse(body: unknown): Response {
 
 const TEST_FLAG: FeatureFlag = {
   name: 'pulse',
+  type: 'on-off',
   enabled: false,
+  value: null,
   description: 'Pulse transport',
   updatedAt: '2026-07-23T00:00:00.000Z',
   updatedBy: null,
@@ -32,15 +34,18 @@ describe('fetchFeatureFlags', () => {
     vi.unstubAllGlobals()
   })
 
-  it('calls GET /feature-flags on the BFF and unwraps the flags map', async () => {
+  it('calls GET /feature-flags on the BFF and unwraps the typed flags map', async () => {
     fetchMock.mockResolvedValue(
-      jsonResponse({ ok: true, data: { flags: { pulse: false, 'dual-channel': true } } })
+      jsonResponse({
+        ok: true,
+        data: { flags: { pulse: false, 'dual-channel': true, 'sentry-sample-rate': 0.1, greeting: 'gm' } },
+      })
     )
 
     const flags = await fetchFeatureFlags()
 
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/feature-flags'))
-    expect(flags).toEqual({ pulse: false, 'dual-channel': true })
+    expect(flags).toEqual({ pulse: false, 'dual-channel': true, 'sentry-sample-rate': 0.1, greeting: 'gm' })
   })
 
   it('throws the server error message when the envelope is ok: false', async () => {
@@ -78,12 +83,13 @@ describe('fetchFeatureFlagsDetailed', () => {
 })
 
 describe('createFeatureFlag', () => {
-  it('POSTs the new flag and returns the created row', async () => {
+  it('POSTs a new on-off flag and returns the created row', async () => {
     const created = { ...TEST_FLAG, name: 'shiny-thing' }
     const authenticatedFetch = vi.fn().mockResolvedValue(jsonResponse({ ok: true, data: created }))
 
     const flag = await createFeatureFlag(authenticatedFetch, {
       name: 'shiny-thing',
+      type: 'on-off',
       enabled: false,
       description: 'New toggle',
     })
@@ -93,7 +99,44 @@ describe('createFeatureFlag', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'shiny-thing', enabled: false, description: 'New toggle' }),
+        body: JSON.stringify({
+          name: 'shiny-thing',
+          type: 'on-off',
+          enabled: false,
+          description: 'New toggle',
+        }),
+      }
+    )
+    expect(flag).toEqual(created)
+  })
+
+  it('POSTs a number flag with value and without enabled', async () => {
+    const created: FeatureFlag = {
+      ...TEST_FLAG,
+      name: 'sentry-sample-rate',
+      type: 'number',
+      value: 0.1,
+    }
+    const authenticatedFetch = vi.fn().mockResolvedValue(jsonResponse({ ok: true, data: created }))
+
+    const flag = await createFeatureFlag(authenticatedFetch, {
+      name: 'sentry-sample-rate',
+      type: 'number',
+      value: '0.1',
+      description: null,
+    })
+
+    expect(authenticatedFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/backoffice/feature-flags'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'sentry-sample-rate',
+          type: 'number',
+          value: '0.1',
+          description: null,
+        }),
       }
     )
     expect(flag).toEqual(created)
@@ -105,7 +148,12 @@ describe('createFeatureFlag', () => {
       .mockResolvedValue(jsonResponse({ ok: false, error: "Feature flag 'pulse' already exists" }))
 
     await expect(
-      createFeatureFlag(authenticatedFetch, { name: 'pulse', enabled: false, description: null })
+      createFeatureFlag(authenticatedFetch, {
+        name: 'pulse',
+        type: 'on-off',
+        enabled: false,
+        description: null,
+      })
     ).rejects.toThrow("Feature flag 'pulse' already exists")
   })
 })
@@ -123,6 +171,28 @@ describe('updateFeatureFlag', () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: true }),
+      }
+    )
+    expect(flag).toEqual(updated)
+  })
+
+  it('PUTs a value change for a text/number flag', async () => {
+    const updated: FeatureFlag = {
+      ...TEST_FLAG,
+      name: 'sentry-sample-rate',
+      type: 'number',
+      value: 0.5,
+    }
+    const authenticatedFetch = vi.fn().mockResolvedValue(jsonResponse({ ok: true, data: updated }))
+
+    const flag = await updateFeatureFlag(authenticatedFetch, 'sentry-sample-rate', { value: '0.5' })
+
+    expect(authenticatedFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/backoffice/feature-flags/sentry-sample-rate'),
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: '0.5' }),
       }
     )
     expect(flag).toEqual(updated)

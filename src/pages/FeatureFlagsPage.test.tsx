@@ -38,7 +38,9 @@ const authenticatedFetch = vi.fn()
 
 const PULSE: FeatureFlag = {
   name: 'pulse',
+  type: 'on-off',
   enabled: false,
+  value: null,
   description: 'Pulse avatar transport',
   updatedAt: '2026-07-23T00:00:00.000Z',
   updatedBy: null,
@@ -46,10 +48,22 @@ const PULSE: FeatureFlag = {
 
 const DUAL_CHANNEL: FeatureFlag = {
   name: 'dual-channel',
+  type: 'on-off',
   enabled: true,
+  value: null,
   description: 'LiveKit movement dual-send',
   updatedAt: '2026-07-23T00:00:00.000Z',
   updatedBy: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+}
+
+const SENTRY_SAMPLE_RATE: FeatureFlag = {
+  name: 'sentry-sample-rate',
+  type: 'number',
+  enabled: false,
+  value: 1,
+  description: 'Sentry error sample rate',
+  updatedAt: '2026-07-23T00:00:00.000Z',
+  updatedBy: null,
 }
 
 describe('FeatureFlagsPage', () => {
@@ -58,8 +72,8 @@ describe('FeatureFlagsPage', () => {
     mockUseAuth.mockReturnValue({ isSignedIn: true } as ReturnType<typeof useAuth>)
     mockUseAuthenticatedFetch.mockReturnValue(authenticatedFetch)
     mockIsDevMode.mockReturnValue(false)
-    mockFetchDetailed.mockResolvedValue([DUAL_CHANNEL, PULSE])
-    mockFetchFlags.mockResolvedValue({ pulse: false, 'dual-channel': true })
+    mockFetchDetailed.mockResolvedValue([DUAL_CHANNEL, PULSE, SENTRY_SAMPLE_RATE])
+    mockFetchFlags.mockResolvedValue({ pulse: false, 'dual-channel': true, 'sentry-sample-rate': 1 })
   })
 
   it('loads detailed flags for editors and renders state and descriptions', async () => {
@@ -73,6 +87,16 @@ describe('FeatureFlagsPage', () => {
     expect(screen.getByRole('switch', { name: 'Toggle dual-channel' }).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByText('Pulse avatar transport')).toBeTruthy()
     expect(screen.getByText('LiveKit movement dual-send')).toBeTruthy()
+  })
+
+  it('renders number flags as a value chip with a type badge instead of a switch', async () => {
+    render(<FeatureFlagsPage />)
+
+    const chip = await screen.findByRole('button', { name: 'Edit sentry-sample-rate value' })
+
+    expect(chip.textContent).toBe('1')
+    expect(screen.getByText('number')).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Toggle sentry-sample-rate' })).toBeNull()
   })
 
   it('falls back to the public endpoint and disables editing for read-only viewers', async () => {
@@ -90,6 +114,11 @@ describe('FeatureFlagsPage', () => {
     expect(screen.queryByRole('button', { name: 'New flag' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Edit pulse description' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Delete pulse' })).toBeNull()
+
+    // Typed values from the public map render as read-only chips
+    const chip = screen.getByRole('button', { name: 'Edit sentry-sample-rate value' })
+    expect(chip.textContent).toBe('1')
+    expect(chip).toHaveProperty('disabled', true)
   })
 
   it('shows the load error with a Retry button that refetches', async () => {
@@ -147,6 +176,46 @@ describe('FeatureFlagsPage', () => {
     expect(screen.getByRole('switch', { name: 'Toggle pulse' }).getAttribute('aria-checked')).toBe('false')
   })
 
+  it('edits a number flag value with confirmation and canonical server response', async () => {
+    mockUpdateFlag.mockResolvedValue({ ...SENTRY_SAMPLE_RATE, value: 0.5 })
+
+    render(<FeatureFlagsPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit sentry-sample-rate value' }))
+
+    const input = screen.getByRole('textbox', { name: 'Value for sentry-sample-rate' })
+    await userEvent.clear(input)
+    await userEvent.type(input, '0.5')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('sentry-sample-rate')
+    expect(dialog.textContent).toContain('1')
+    expect(dialog.textContent).toContain('0.5')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, save' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(mockUpdateFlag).toHaveBeenCalledWith(authenticatedFetch, 'sentry-sample-rate', { value: '0.5' })
+    expect(screen.getByRole('button', { name: 'Edit sentry-sample-rate value' }).textContent).toBe('0.5')
+    expect(screen.queryByRole('textbox', { name: 'Value for sentry-sample-rate' })).toBeNull()
+  })
+
+  it('rejects a non-numeric value for a number flag client-side without calling the API', async () => {
+    render(<FeatureFlagsPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit sentry-sample-rate value' }))
+
+    const input = screen.getByRole('textbox', { name: 'Value for sentry-sample-rate' })
+    await userEvent.clear(input)
+    await userEvent.type(input, 'lots')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await screen.findByText(/plain decimal number/i)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mockUpdateFlag).not.toHaveBeenCalled()
+  })
+
   it('edits a description inline and saves it', async () => {
     mockUpdateFlag.mockResolvedValue({ ...PULSE, description: 'New words' })
 
@@ -164,10 +233,12 @@ describe('FeatureFlagsPage', () => {
     expect(screen.queryByRole('textbox', { name: 'Description for pulse' })).toBeNull()
   })
 
-  it('creates a new flag from the form', async () => {
+  it('creates a new on-off flag from the form', async () => {
     const created: FeatureFlag = {
       name: 'shiny-thing',
+      type: 'on-off',
       enabled: false,
+      value: null,
       description: 'A new toggle',
       updatedAt: '2026-07-23T01:00:00.000Z',
       updatedBy: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
@@ -184,9 +255,55 @@ describe('FeatureFlagsPage', () => {
     await screen.findByRole('switch', { name: 'Toggle shiny-thing' })
     expect(mockCreateFlag).toHaveBeenCalledWith(authenticatedFetch, {
       name: 'shiny-thing',
+      type: 'on-off',
       enabled: false,
       description: 'A new toggle',
     })
+  })
+
+  it('creates a number flag from the form, sending value instead of enabled', async () => {
+    const created: FeatureFlag = {
+      name: 'spawn-radius',
+      type: 'number',
+      enabled: false,
+      value: 2.5,
+      description: null,
+      updatedAt: '2026-07-23T01:00:00.000Z',
+      updatedBy: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    }
+    mockCreateFlag.mockResolvedValue(created)
+
+    render(<FeatureFlagsPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'New flag' }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Flag name' }), 'spawn-radius')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Flag type' }), 'number')
+
+    // The enabled checkbox is replaced by a value field for number flags
+    expect(screen.queryByText('Enabled from the start')).toBeNull()
+    await userEvent.type(screen.getByRole('textbox', { name: 'Flag value' }), '2.5')
+    await userEvent.click(screen.getByRole('button', { name: 'Create flag' }))
+
+    await screen.findByRole('button', { name: 'Edit spawn-radius value' })
+    expect(mockCreateFlag).toHaveBeenCalledWith(authenticatedFetch, {
+      name: 'spawn-radius',
+      type: 'number',
+      value: '2.5',
+      description: null,
+    })
+  })
+
+  it('rejects a non-numeric value when creating a number flag', async () => {
+    render(<FeatureFlagsPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'New flag' }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Flag name' }), 'spawn-radius')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Flag type' }), 'number')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Flag value' }), '1e3')
+    await userEvent.click(screen.getByRole('button', { name: 'Create flag' }))
+
+    await screen.findByText(/plain decimal number/i)
+    expect(mockCreateFlag).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid flag name client-side without calling the API', async () => {
