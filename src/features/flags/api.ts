@@ -2,11 +2,16 @@ import { config } from '../../config'
 
 const API_BASE = config.get('MOBILE_BFF_URL')
 
-export type FeatureFlags = Record<string, boolean>
+// on-off flags map to a boolean, text flags to a string, number flags to a number
+export type FeatureFlags = Record<string, boolean | string | number>
+
+export type FlagType = 'on-off' | 'text' | 'number'
 
 export interface FeatureFlag {
   name: string
+  type: FlagType
   enabled: boolean
+  value: string | number | null
   description: string | null
   updatedAt: string
   updatedBy: string | null
@@ -44,9 +49,12 @@ export async function fetchFeatureFlagsDetailed(
   return data.flags
 }
 
+// The BFF rejects `enabled` on text/number flags and `value` on on-off flags,
+// so callers pass only the field matching the flag type (undefined keys are
+// dropped by JSON.stringify).
 export async function createFeatureFlag(
   authenticatedFetch: AuthenticatedFetch,
-  input: { name: string; enabled: boolean; description: string | null }
+  input: { name: string; type: FlagType; enabled?: boolean; value?: string; description: string | null }
 ): Promise<FeatureFlag> {
   const response = await authenticatedFetch(`${API_BASE}/backoffice/feature-flags`, {
     method: 'POST',
@@ -59,7 +67,7 @@ export async function createFeatureFlag(
 export async function updateFeatureFlag(
   authenticatedFetch: AuthenticatedFetch,
   name: string,
-  changes: { enabled?: boolean; description?: string | null }
+  changes: { enabled?: boolean; value?: string; description?: string | null }
 ): Promise<FeatureFlag> {
   const response = await authenticatedFetch(
     `${API_BASE}/backoffice/feature-flags/${encodeURIComponent(name)}`,
