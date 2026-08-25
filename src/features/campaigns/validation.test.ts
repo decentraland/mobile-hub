@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest'
-import { draftToInput, emptyDraft, parsePlaceIds, windowState } from './validation'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import {
+  draftToInput,
+  emptyDraft,
+  parsePlaceIds,
+  toLocalDateTimeInput,
+  windowState,
+} from './validation'
 
 const UUID = '780f04dd-eba1-41a8-b109-74896c87e98b'
 const OTHER_UUID = '11111111-2222-3333-4444-555555555555'
@@ -82,6 +88,48 @@ describe('draftToInput', () => {
     expect(result).toEqual({
       input: expect.objectContaining({ startsAt: null, endsAt: expect.any(String) }),
     })
+  })
+})
+
+describe('date handling', () => {
+  // Pinned off UTC on purpose: with the browser on UTC the old sliced-ISO implementation
+  // round-trips by accident, so a UTC-only CI would never catch the drift regressing.
+  const originalTz = process.env.TZ
+  beforeAll(() => {
+    process.env.TZ = 'America/Argentina/Buenos_Aires'
+  })
+  afterAll(() => {
+    process.env.TZ = originalTz
+  })
+
+  // A datetime-local input is read back as local wall time. Slicing the stored UTC string
+  // into it showed the wrong moment and shifted the window by the browser's offset on every
+  // save, compounding each time.
+  it('round-trips a stored instant through the datetime-local input', () => {
+    const stored = '2026-09-01T00:00:00.000Z'
+
+    const shown = toLocalDateTimeInput(stored)
+
+    expect(new Date(shown).toISOString()).toBe(stored)
+    // The naive implementation this replaces; it is only equal when the browser is on UTC.
+    expect(shown).not.toBe(stored.slice(0, 16))
+  })
+
+  it('treats an absent or unparseable bound as open-ended', () => {
+    expect(toLocalDateTimeInput(null)).toBe('')
+    expect(toLocalDateTimeInput('not-a-date')).toBe('')
+  })
+
+  // new Date(garbage).toISOString() throws rather than returning null, so an unguarded
+  // parse escaped the form as an unhandled exception instead of an error message.
+  it.each([
+    ['start', { startsAt: 'not-a-date' }],
+    ['end', { endsAt: 'not-a-date' }],
+  ])('reports an invalid %s date instead of throwing', (_label, overrides) => {
+    const result = draftToInput(genesisDraft(overrides))
+
+    expect(result).toHaveProperty('error')
+    expect((result as { error: string }).error).toMatch(/not a valid date/)
   })
 })
 

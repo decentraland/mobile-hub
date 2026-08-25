@@ -18,6 +18,7 @@ import {
   emptyDraft,
   describeTarget,
   windowState,
+  toLocalDateTimeInput,
   type CampaignFormDraft,
 } from '../features/campaigns/validation'
 import './CampaignsPage.css'
@@ -60,7 +61,6 @@ function toChanges(input: CampaignInput): CampaignChanges {
 }
 
 function draftFromCampaign(campaign: Campaign): CampaignFormDraft {
-  const toLocalInput = (iso: string | null) => (iso ? iso.slice(0, 16) : '')
   return {
     token: campaign.token,
     mode: campaign.mode,
@@ -70,10 +70,23 @@ function draftFromCampaign(campaign: Campaign): CampaignFormDraft {
     title: campaign.title ?? '',
     cta: campaign.cta ?? '',
     placeIds: campaign.placeIds.join(', '),
-    startsAt: toLocalInput(campaign.startsAt),
-    endsAt: toLocalInput(campaign.endsAt),
+    startsAt: toLocalDateTimeInput(campaign.startsAt),
+    endsAt: toLocalDateTimeInput(campaign.endsAt),
     enabled: campaign.enabled,
   }
+}
+
+// A campaign goes live or expires on a wall-clock boundary, so the badge has to be able to
+// change without the page being reloaded. Coarse on purpose: nothing here needs the second.
+const STATE_REFRESH_MS = 30_000
+
+function useNow(intervalMs: number): Date {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), intervalMs)
+    return () => clearInterval(id)
+  }, [intervalMs])
+  return now
 }
 
 export const CampaignsPage: FC = () => {
@@ -88,6 +101,7 @@ export const CampaignsPage: FC = () => {
   const [editingToken, setEditingToken] = useState<string | null>(null)
   const [auditToken, setAuditToken] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const now = useNow(STATE_REFRESH_MS)
 
   const loadCampaigns = useCallback(async () => {
     setIsLoading(true)
@@ -220,6 +234,7 @@ export const CampaignsPage: FC = () => {
                   key={campaign.token}
                   campaign={campaign}
                   canEdit={canEdit}
+                  now={now}
                   authenticatedFetch={authenticatedFetch}
                   isAuditOpen={auditToken === campaign.token}
                   onToggleAudit={() =>
@@ -266,6 +281,7 @@ const STATE_LABEL: Record<ReturnType<typeof windowState>, string> = {
 const CampaignRow: FC<{
   campaign: Campaign
   canEdit: boolean
+  now: Date
   authenticatedFetch: AuthenticatedFetch
   isAuditOpen: boolean
   onToggleAudit: () => void
@@ -275,6 +291,7 @@ const CampaignRow: FC<{
 }> = ({
   campaign,
   canEdit,
+  now,
   authenticatedFetch,
   isAuditOpen,
   onToggleAudit,
@@ -282,7 +299,7 @@ const CampaignRow: FC<{
   onToggle,
   onRequestDelete,
 }) => {
-  const state = windowState(campaign)
+  const state = windowState(campaign, now)
 
   return (
     <section className="campaign-row">

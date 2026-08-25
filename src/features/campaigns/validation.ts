@@ -48,6 +48,35 @@ export function emptyDraft(): CampaignFormDraft {
   }
 }
 
+const INVALID_DATE = Symbol('invalid-date')
+
+// `new Date(garbage).toISOString()` throws rather than returning null, so the invalid case
+// has to be caught on the Date itself or it escapes the form as an unhandled exception.
+function toIso(value: string): string | null | typeof INVALID_DATE {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return null
+  const date = new Date(trimmed)
+  return Number.isNaN(date.getTime()) ? INVALID_DATE : date.toISOString()
+}
+
+/**
+ * UTC instant -> the `datetime-local` value that denotes it.
+ *
+ * The input is read back as local wall time, so handing it a sliced UTC string makes the
+ * panel show the wrong moment and shifts the window by the browser's offset on every save.
+ * Returns '' for an absent or unparseable timestamp (an open-ended bound).
+ */
+export function toLocalDateTimeInput(iso: string | null): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  )
+}
+
 export function parsePlaceIds(raw: string): string[] {
   return raw
     .split(/[\s,]+/)
@@ -83,12 +112,13 @@ export function draftToInput(draft: CampaignFormDraft): { input: CampaignInput }
     return { error: 'Place ids must not repeat' }
   }
 
-  const startsAt = draft.startsAt.trim()
-  const endsAt = draft.endsAt.trim()
-  const startsAtIso = startsAt.length > 0 ? new Date(startsAt).toISOString() : null
-  const endsAtIso = endsAt.length > 0 ? new Date(endsAt).toISOString() : null
-  if (startsAt.length > 0 && startsAtIso === null) {
+  const startsAtIso = toIso(draft.startsAt)
+  if (startsAtIso === INVALID_DATE) {
     return { error: 'Start date is not a valid date' }
+  }
+  const endsAtIso = toIso(draft.endsAt)
+  if (endsAtIso === INVALID_DATE) {
+    return { error: 'End date is not a valid date' }
   }
   if (endsAtIso !== null && startsAtIso !== null && endsAtIso <= startsAtIso) {
     return { error: 'End date must be after the start date' }
