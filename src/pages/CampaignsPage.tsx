@@ -7,54 +7,22 @@ import {
   createCampaign,
   updateCampaign,
   deleteCampaign,
-  fetchCampaignAudit,
   type Campaign,
-  type CampaignAuditEntry,
   type CampaignInput,
-  type CampaignChanges,
 } from '../features/campaigns/api'
 import {
   draftToInput,
   emptyDraft,
   describeTarget,
-  windowState,
-  toLocalDateTimeInput,
   type CampaignFormDraft,
 } from '../features/campaigns/validation'
 import './CampaignsPage.css'
 
-type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>
-
-type ConfirmAction =
-  | { kind: 'toggle'; token: string; next: boolean }
-  | { kind: 'delete'; token: string }
-
 type ConfirmState =
   | { status: 'idle' }
-  | { status: 'confirming'; action: ConfirmAction }
-  | { status: 'saving'; action: ConfirmAction }
-  | { status: 'error'; action: ConfirmAction; message: string }
-
-function shortAddress(address: string): string {
-  return `${address.slice(0, 6)}…${address.slice(-4)}`
-}
-
-function formatDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString() : '—'
-}
-
-// The token is the identity, not a field, so an edit sends everything except it. Keys left
-// undefined (the target column that does not apply) are dropped by JSON.stringify.
-function toChanges(input: CampaignInput): CampaignChanges {
-  return {
-    targetType: input.targetType,
-    targetPosition: input.targetPosition,
-    targetWorld: input.targetWorld,
-    startsAt: input.startsAt,
-    endsAt: input.endsAt,
-    enabled: input.enabled,
-  }
-}
+  | { status: 'confirming'; token: string }
+  | { status: 'saving'; token: string }
+  | { status: 'error'; token: string; message: string }
 
 function draftFromCampaign(campaign: Campaign): CampaignFormDraft {
   return {
@@ -62,23 +30,7 @@ function draftFromCampaign(campaign: Campaign): CampaignFormDraft {
     targetType: campaign.target.type,
     targetPosition: campaign.target.type === 'genesis' ? campaign.target.position : '',
     targetWorld: campaign.target.type === 'world' ? campaign.target.name : '',
-    startsAt: toLocalDateTimeInput(campaign.startsAt),
-    endsAt: toLocalDateTimeInput(campaign.endsAt),
-    enabled: campaign.enabled,
   }
-}
-
-// A campaign goes live or expires on a wall-clock boundary, so the badge has to be able to
-// change without the page being reloaded. Coarse on purpose: nothing here needs the second.
-const STATE_REFRESH_MS = 30_000
-
-function useNow(intervalMs: number): Date {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), intervalMs)
-    return () => clearInterval(id)
-  }, [intervalMs])
-  return now
 }
 
 export const CampaignsPage: FC = () => {
@@ -91,9 +43,7 @@ export const CampaignsPage: FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>({ status: 'idle' })
   const [editingToken, setEditingToken] = useState<string | null>(null)
-  const [auditToken, setAuditToken] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const now = useNow(STATE_REFRESH_MS)
 
   const loadCampaigns = useCallback(async () => {
     setIsLoading(true)
@@ -119,23 +69,19 @@ export const CampaignsPage: FC = () => {
     setCampaigns(prev => (prev ? prev.map(c => (c.token === updated.token ? updated : c)) : prev))
   }
 
-  const handleConfirmAction = async () => {
+  const handleConfirmDelete = async () => {
     if (confirm.status !== 'confirming' && confirm.status !== 'error') return
-    const { action } = confirm
-    setConfirm({ status: 'saving', action })
+    const { token } = confirm
+    setConfirm({ status: 'saving', token })
     try {
-      if (action.kind === 'toggle') {
-        replaceCampaign(await updateCampaign(authenticatedFetch, action.token, { enabled: action.next }))
-      } else {
-        await deleteCampaign(authenticatedFetch, action.token)
-        setCampaigns(prev => (prev ? prev.filter(c => c.token !== action.token) : prev))
-      }
+      await deleteCampaign(authenticatedFetch, token)
+      setCampaigns(prev => (prev ? prev.filter(c => c.token !== token) : prev))
       setConfirm({ status: 'idle' })
     } catch (err) {
       setConfirm({
         status: 'error',
-        action,
-        message: err instanceof Error ? err.message : 'Failed to save',
+        token,
+        message: err instanceof Error ? err.message : 'Failed to delete',
       })
     }
   }
@@ -159,8 +105,8 @@ export const CampaignsPage: FC = () => {
             Anything that does not resolve gets the default FTUE, unchanged.
           </p>
           <p className="campaigns-note">
-            Changes are live on the next app launch — no release needed. A campaign only
-            reaches clients while it is enabled and inside its active window.
+            Changes are live on the next app launch — no release needed. A campaign is live
+            as soon as it exists; to stop one, delete it.
           </p>
           {!canEdit && (
             <div className="campaigns-warning">
@@ -212,7 +158,11 @@ export const CampaignsPage: FC = () => {
                   initialDraft={draftFromCampaign(campaign)}
                   tokenLocked
                   onSubmit={input =>
-                    updateCampaign(authenticatedFetch, campaign.token, toChanges(input))
+                    updateCampaign(authenticatedFetch, campaign.token, {
+                      targetType: input.targetType,
+                      targetPosition: input.targetPosition,
+                      targetWorld: input.targetWorld,
+                    })
                   }
                   onSaved={updated => {
                     replaceCampaign(updated)
@@ -225,24 +175,9 @@ export const CampaignsPage: FC = () => {
                   key={campaign.token}
                   campaign={campaign}
                   canEdit={canEdit}
-                  now={now}
-                  authenticatedFetch={authenticatedFetch}
-                  isAuditOpen={auditToken === campaign.token}
-                  onToggleAudit={() =>
-                    setAuditToken(auditToken === campaign.token ? null : campaign.token)
-                  }
                   onEdit={() => setEditingToken(campaign.token)}
-                  onToggle={() =>
-                    setConfirm({
-                      status: 'confirming',
-                      action: { kind: 'toggle', token: campaign.token, next: !campaign.enabled },
-                    })
-                  }
                   onRequestDelete={() =>
-                    setConfirm({
-                      status: 'confirming',
-                      action: { kind: 'delete', token: campaign.token },
-                    })
+                    setConfirm({ status: 'confirming', token: campaign.token })
                   }
                 />
               )
@@ -254,7 +189,7 @@ export const CampaignsPage: FC = () => {
       {confirm.status !== 'idle' && (
         <ConfirmDialog
           state={confirm}
-          onConfirm={handleConfirmAction}
+          onConfirm={handleConfirmDelete}
           onCancel={() => setConfirm({ status: 'idle' })}
         />
       )}
@@ -262,149 +197,44 @@ export const CampaignsPage: FC = () => {
   )
 }
 
-const STATE_LABEL: Record<ReturnType<typeof windowState>, string> = {
-  live: 'LIVE',
-  scheduled: 'SCHEDULED',
-  expired: 'EXPIRED',
-  disabled: 'OFF',
-}
-
 const CampaignRow: FC<{
   campaign: Campaign
   canEdit: boolean
-  now: Date
-  authenticatedFetch: AuthenticatedFetch
-  isAuditOpen: boolean
-  onToggleAudit: () => void
   onEdit: () => void
-  onToggle: () => void
   onRequestDelete: () => void
-}> = ({
-  campaign,
-  canEdit,
-  now,
-  authenticatedFetch,
-  isAuditOpen,
-  onToggleAudit,
-  onEdit,
-  onToggle,
-  onRequestDelete,
-}) => {
-  const state = windowState(campaign, now)
-
-  return (
-    <section className="campaign-row">
-      <div className="campaign-row-main">
-        <div className="campaign-row-labels">
-          <span className="campaign-row-token">
-            {campaign.token}
-            <span className={`campaign-state campaign-state-${state}`}>{STATE_LABEL[state]}</span>
-          </span>
-          <span className="campaign-row-target">
-            → {campaign.target.type === 'world' ? 'World' : 'Parcel'}{' '}
-            <code>{describeTarget(campaign.target)}</code>
-          </span>
-          <span className="campaign-row-window">
-            {formatDate(campaign.startsAt)} → {formatDate(campaign.endsAt)}
-          </span>
-          {campaign.updatedBy && (
-            <span className="campaign-row-audit-line">
-              Updated by {shortAddress(campaign.updatedBy)} · {formatDate(campaign.updatedAt)}
-            </span>
-          )}
-        </div>
+}> = ({ campaign, canEdit, onEdit, onRequestDelete }) => (
+  <section className="campaign-row">
+    <div className="campaign-row-main">
+      <div className="campaign-row-labels">
+        <span className="campaign-row-token">{campaign.token}</span>
+        <span className="campaign-row-target">
+          → {campaign.target.type === 'world' ? 'World' : 'Parcel'}{' '}
+          <code>{describeTarget(campaign.target)}</code>
+        </span>
+      </div>
+      {canEdit && (
         <div className="campaign-row-actions">
-          {canEdit && (
-            <>
-              <button
-                className="campaign-icon-button"
-                aria-label={`History for ${campaign.token}`}
-                title="Audit trail"
-                onClick={onToggleAudit}
-              >
-                ⟲
-              </button>
-              <button
-                className="campaign-icon-button"
-                aria-label={`Edit ${campaign.token}`}
-                title="Edit campaign"
-                onClick={onEdit}
-              >
-                ✎
-              </button>
-              <button
-                className="campaign-icon-button campaign-icon-button-danger"
-                aria-label={`Delete ${campaign.token}`}
-                title="Delete campaign"
-                onClick={onRequestDelete}
-              >
-                ✕
-              </button>
-            </>
-          )}
           <button
-            role="switch"
-            aria-checked={campaign.enabled}
-            aria-label={`Toggle ${campaign.token}`}
-            className={`campaign-switch ${campaign.enabled ? 'campaign-switch-on' : ''}`}
-            disabled={!canEdit}
-            onClick={onToggle}
+            className="campaign-icon-button"
+            aria-label={`Edit ${campaign.token}`}
+            title="Edit campaign"
+            onClick={onEdit}
           >
-            <span className="campaign-switch-state">{campaign.enabled ? 'ON' : 'OFF'}</span>
-            <span className="campaign-switch-knob" />
+            ✎
+          </button>
+          <button
+            className="campaign-icon-button campaign-icon-button-danger"
+            aria-label={`Delete ${campaign.token}`}
+            title="Delete campaign"
+            onClick={onRequestDelete}
+          >
+            ✕
           </button>
         </div>
-      </div>
-
-      {isAuditOpen && (
-        <AuditTrail token={campaign.token} authenticatedFetch={authenticatedFetch} />
       )}
-    </section>
-  )
-}
-
-const AuditTrail: FC<{ token: string; authenticatedFetch: AuthenticatedFetch }> = ({
-  token,
-  authenticatedFetch,
-}) => {
-  const [entries, setEntries] = useState<CampaignAuditEntry[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    fetchCampaignAudit(authenticatedFetch, token)
-      .then(loaded => {
-        if (!cancelled) setEntries(loaded)
-      })
-      .catch(err => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load the audit trail')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [token, authenticatedFetch])
-
-  if (error) return <div className="campaigns-error">{error}</div>
-  if (!entries) return <div className="campaign-audit-loading">Loading history…</div>
-  if (entries.length === 0) return <div className="campaign-audit-loading">No history yet.</div>
-
-  return (
-    <ul className="campaign-audit">
-      {entries.map(entry => (
-        <li key={entry.id}>
-          <span className={`campaign-audit-action campaign-audit-${entry.action}`}>
-            {entry.action}
-          </span>
-          <span className="campaign-audit-actor">{shortAddress(entry.actor)}</span>
-          <span className="campaign-audit-date">{formatDate(entry.createdAt)}</span>
-          {entry.changes && (
-            <code className="campaign-audit-changes">{Object.keys(entry.changes).join(', ')}</code>
-          )}
-        </li>
-      ))}
-    </ul>
-  )
-}
+    </div>
+  </section>
+)
 
 const CampaignForm: FC<{
   heading: string
@@ -449,7 +279,7 @@ const CampaignForm: FC<{
           value={draft.token}
           maxLength={64}
           disabled={tokenLocked}
-          placeholder="summer-26"
+          placeholder="summer2022"
           onChange={e => set('token', e.target.value)}
         />
       </label>
@@ -488,36 +318,6 @@ const CampaignForm: FC<{
         </label>
       )}
 
-      <div className="campaign-field-row">
-        <label className="campaign-field">
-          <span>Starts at</span>
-          <input
-            type="datetime-local"
-            aria-label="Starts at"
-            value={draft.startsAt}
-            onChange={e => set('startsAt', e.target.value)}
-          />
-        </label>
-        <label className="campaign-field">
-          <span>Ends at</span>
-          <input
-            type="datetime-local"
-            aria-label="Ends at"
-            value={draft.endsAt}
-            onChange={e => set('endsAt', e.target.value)}
-          />
-        </label>
-      </div>
-
-      <label className="campaign-enabled">
-        <input
-          type="checkbox"
-          checked={draft.enabled}
-          onChange={e => set('enabled', e.target.checked)}
-        />
-        <span>Enabled</span>
-      </label>
-
       {error && <div className="campaigns-error">{error}</div>}
 
       <div className="campaign-form-actions">
@@ -537,10 +337,8 @@ const ConfirmDialog: FC<{
   onConfirm: () => void
   onCancel: () => void
 }> = ({ state, onConfirm, onCancel }) => {
-  const { action } = state
   const saving = state.status === 'saving'
   const errorMessage = state.status === 'error' ? state.message : null
-  const isDelete = action.kind === 'delete'
 
   return (
     <div className="campaigns-modal-backdrop" onClick={saving ? undefined : onCancel}>
@@ -550,24 +348,15 @@ const ConfirmDialog: FC<{
         aria-modal="true"
         onClick={e => e.stopPropagation()}
       >
-        <h3>{isDelete ? 'Delete campaign' : 'Confirm campaign change'}</h3>
+        <h3>Delete campaign</h3>
         <p>
-          {isDelete
-            ? 'This removes the mapping. Installs carrying this token fall back to the default FTUE. The audit trail is kept.'
-            : 'This changes what new installs see on their next launch.'}
+          This removes the mapping. Installs carrying this token fall back to the default
+          FTUE on their next launch.
         </p>
 
         <div className="campaigns-diff">
-          <code>{action.token}</code>
-          {action.kind === 'toggle' ? (
-            <span className="campaigns-diff-value">
-              <span className="campaigns-diff-from">{action.next ? 'OFF' : 'ON'}</span>
-              <span className="campaigns-diff-arrow">→</span>
-              <span className="campaigns-diff-to">{action.next ? 'ON' : 'OFF'}</span>
-            </span>
-          ) : (
-            <span className="campaigns-diff-value campaigns-diff-delete">will be removed</span>
-          )}
+          <code>{state.token}</code>
+          <span className="campaigns-diff-value campaigns-diff-delete">will be removed</span>
         </div>
 
         {errorMessage && <div className="campaigns-error">{errorMessage}</div>}
@@ -576,12 +365,8 @@ const ConfirmDialog: FC<{
           <button className="campaigns-button-secondary" onClick={onCancel} disabled={saving}>
             Cancel
           </button>
-          <button
-            className={isDelete ? 'campaigns-button-danger' : 'campaigns-button-primary'}
-            onClick={onConfirm}
-            disabled={saving}
-          >
-            {saving ? 'Saving…' : isDelete ? 'Yes, delete' : 'Yes, save'}
+          <button className="campaigns-button-danger" onClick={onConfirm} disabled={saving}>
+            {saving ? 'Deleting…' : 'Yes, delete'}
           </button>
         </div>
       </div>

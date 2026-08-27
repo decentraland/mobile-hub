@@ -61,8 +61,7 @@
   font-size: 13px;
 }
 
-.campaigns-loading,
-.campaign-audit-loading {
+.campaigns-loading {
   color: rgba(255, 255, 255, 0.5);
   text-align: center;
   padding: 16px 24px;
@@ -137,45 +136,7 @@
   font-weight: 600;
 }
 
-.campaign-badge,
-.campaign-state {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
-}
-
-.campaign-badge-ftue {
-  background: rgba(0, 217, 255, 0.12);
-  color: #00d9ff;
-}
-
-.campaign-badge-bypass {
-  background: rgba(177, 138, 255, 0.15);
-  color: #b18aff;
-}
-
-.campaign-state-live {
-  background: rgba(76, 217, 100, 0.12);
-  color: #4cd964;
-}
-
-.campaign-state-scheduled {
-  background: rgba(255, 193, 7, 0.12);
-  color: #ffc107;
-}
-
-.campaign-state-expired,
-.campaign-state-disabled {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.campaign-row-target,
-.campaign-row-window,
-.campaign-row-audit-line {
+.campaign-row-target {
   color: rgba(255, 255, 255, 0.5);
   font-size: 12px;
 }
@@ -205,86 +166,6 @@
 .campaign-icon-button-danger:hover {
   color: #ff6b6b;
   border-color: rgba(255, 68, 68, 0.4);
-}
-
-.campaign-switch {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  padding: 4px 6px 4px 10px;
-  cursor: pointer;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.campaign-switch:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.campaign-switch-knob {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.campaign-switch-on {
-  background: rgba(76, 217, 100, 0.15);
-  border-color: rgba(76, 217, 100, 0.4);
-  color: #4cd964;
-}
-
-.campaign-switch-on .campaign-switch-knob {
-  background: #4cd964;
-}
-
-.campaign-audit {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 12px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.campaign-audit li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.campaign-audit-action {
-  font-weight: 700;
-  text-transform: uppercase;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.campaign-audit-create {
-  color: #4cd964;
-}
-
-.campaign-audit-update {
-  color: #00d9ff;
-}
-
-.campaign-audit-delete {
-  color: #ff6b6b;
-}
-
-.campaign-audit-changes {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 11px;
 }
 
 .campaign-form {
@@ -331,19 +212,6 @@
 
 .campaign-field input:disabled {
   opacity: 0.5;
-}
-
-.campaign-field-row {
-  display: flex;
-  gap: 12px;
-}
-
-.campaign-enabled {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 13px;
 }
 
 .campaign-form-actions,
@@ -442,18 +310,6 @@
   gap: 8px;
   font-size: 12px;
   font-weight: 700;
-}
-
-.campaigns-diff-from {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.campaigns-diff-arrow {
-  color: rgba(255, 255, 255, 0.3);
-}
-
-.campaigns-diff-to {
-  color: #4cd964;
 }
 
 .campaigns-diff-delete {

@@ -5,7 +5,6 @@ import {
   createCampaign,
   updateCampaign,
   deleteCampaign,
-  fetchCampaignAudit,
   type Campaign,
   type CampaignInput,
 } from './api'
@@ -15,23 +14,14 @@ function jsonResponse(body: unknown): Response {
 }
 
 const CAMPAIGN: Campaign = {
-  token: 'summer-26',
+  token: 'summer2022',
   target: { type: 'genesis', position: '-9,-9' },
-  startsAt: null,
-  endsAt: null,
-  enabled: true,
-  createdAt: '2026-08-25T00:00:00.000Z',
-  updatedAt: '2026-08-25T00:00:00.000Z',
-  updatedBy: null,
 }
 
 const INPUT: CampaignInput = {
-  token: 'summer-26',
+  token: 'summer2022',
   targetType: 'genesis',
   targetPosition: '-9,-9',
-  startsAt: null,
-  endsAt: null,
-  enabled: false,
 }
 
 describe('fetchActiveCampaigns', () => {
@@ -47,12 +37,12 @@ describe('fetchActiveCampaigns', () => {
   })
 
   it('reads the unauthenticated map the explorer consumes', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ ok: true, data: { campaigns: { 'summer-26': CAMPAIGN } } }))
+    fetchMock.mockResolvedValue(jsonResponse({ ok: true, data: { campaigns: { 'summer2022': CAMPAIGN } } }))
 
     const campaigns = await fetchActiveCampaigns()
 
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/campaigns'))
-    expect(campaigns).toEqual({ 'summer-26': CAMPAIGN })
+    expect(campaigns).toEqual({ 'summer2022': CAMPAIGN })
   })
 
   it('surfaces the server error message', async () => {
@@ -86,42 +76,27 @@ describe('backoffice campaign endpoints', () => {
     )
   })
 
-  it('PUTs only the changed fields', async () => {
+  // The BFF constrains the three target columns as a unit, so the whole target goes up.
+  it('PUTs the whole target on update', async () => {
     authenticatedFetch.mockResolvedValue(jsonResponse({ ok: true, data: CAMPAIGN }))
 
-    await updateCampaign(authenticatedFetch, 'summer-26', { enabled: false })
+    const changes = { targetType: 'world' as const, targetWorld: 'myworld.dcl.eth' }
+    await updateCampaign(authenticatedFetch, 'summer2022', changes)
 
     expect(authenticatedFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/backoffice/campaigns/summer-26'),
-      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ enabled: false }) })
+      expect.stringContaining('/backoffice/campaigns/summer2022'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify(changes) })
     )
   })
 
   it('DELETEs by token', async () => {
-    authenticatedFetch.mockResolvedValue(jsonResponse({ ok: true, data: { token: 'summer-26' } }))
+    authenticatedFetch.mockResolvedValue(jsonResponse({ ok: true, data: { token: 'summer2022' } }))
 
-    await deleteCampaign(authenticatedFetch, 'summer-26')
+    await deleteCampaign(authenticatedFetch, 'summer2022')
 
     expect(authenticatedFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/backoffice/campaigns/summer-26'),
+      expect.stringContaining('/backoffice/campaigns/summer2022'),
       { method: 'DELETE' }
-    )
-  })
-
-  it('reads the audit trail from data.entries', async () => {
-    const entry = {
-      id: 1,
-      token: 'summer-26',
-      action: 'create' as const,
-      changes: null,
-      actor: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-      createdAt: '2026-08-25T00:00:00.000Z',
-    }
-    authenticatedFetch.mockResolvedValue(jsonResponse({ ok: true, data: { entries: [entry] } }))
-
-    await expect(fetchCampaignAudit(authenticatedFetch, 'summer-26')).resolves.toEqual([entry])
-    expect(authenticatedFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/backoffice/campaigns/summer-26/audit')
     )
   })
 
