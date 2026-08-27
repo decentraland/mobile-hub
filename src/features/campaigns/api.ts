@@ -2,10 +2,6 @@ import { config } from '../../config'
 
 const API_BASE = config.get('MOBILE_BFF_URL')
 
-// 'ftue' renders the FTUE with campaign content and the target pinned; 'bypass' skips the
-// FTUE and boots straight into the target's loading screen.
-export type CampaignMode = 'ftue' | 'bypass'
-
 export type TargetType = 'genesis' | 'world'
 
 export type CampaignTarget =
@@ -14,11 +10,7 @@ export type CampaignTarget =
 
 export interface Campaign {
   token: string
-  mode: CampaignMode
   target: CampaignTarget
-  title: string | null
-  cta: string | null
-  placeIds: string[]
   startsAt: string | null
   endsAt: string | null
   enabled: boolean
@@ -38,13 +30,9 @@ export interface CampaignAuditEntry {
 
 export interface CampaignInput {
   token: string
-  mode: CampaignMode
   targetType: TargetType
   targetPosition?: string
   targetWorld?: string
-  title: string | null
-  cta: string | null
-  placeIds: string[]
   startsAt: string | null
   endsAt: string | null
   enabled: boolean

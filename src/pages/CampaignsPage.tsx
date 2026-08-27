@@ -47,13 +47,9 @@ function formatDate(iso: string | null): string {
 // undefined (the target column that does not apply) are dropped by JSON.stringify.
 function toChanges(input: CampaignInput): CampaignChanges {
   return {
-    mode: input.mode,
     targetType: input.targetType,
     targetPosition: input.targetPosition,
     targetWorld: input.targetWorld,
-    title: input.title,
-    cta: input.cta,
-    placeIds: input.placeIds,
     startsAt: input.startsAt,
     endsAt: input.endsAt,
     enabled: input.enabled,
@@ -63,13 +59,9 @@ function toChanges(input: CampaignInput): CampaignChanges {
 function draftFromCampaign(campaign: Campaign): CampaignFormDraft {
   return {
     token: campaign.token,
-    mode: campaign.mode,
     targetType: campaign.target.type,
     targetPosition: campaign.target.type === 'genesis' ? campaign.target.position : '',
     targetWorld: campaign.target.type === 'world' ? campaign.target.name : '',
-    title: campaign.title ?? '',
-    cta: campaign.cta ?? '',
-    placeIds: campaign.placeIds.join(', '),
     startsAt: toLocalDateTimeInput(campaign.startsAt),
     endsAt: toLocalDateTimeInput(campaign.endsAt),
     enabled: campaign.enabled,
@@ -162,10 +154,9 @@ export const CampaignsPage: FC = () => {
           </div>
           <p>
             Maps the opaque token an ad or referrer link carries as <code>?c=&lt;token&gt;</code>{' '}
-            to the scene it should open. The explorer reads{' '}
-            <code>GET /campaigns</code> on boot and either personalizes the FTUE
-            (<code>ftue</code>) or boots straight into the target (<code>bypass</code>).
-            Anything that does not resolve falls back to the default FTUE.
+            to the scene it should open. The explorer reads <code>GET /campaigns</code> on
+            boot and takes an attributed install straight into that scene, skipping the FTUE.
+            Anything that does not resolve gets the default FTUE, unchanged.
           </p>
           <p className="campaigns-note">
             Changes are live on the next app launch — no release needed. A campaign only
@@ -307,7 +298,6 @@ const CampaignRow: FC<{
         <div className="campaign-row-labels">
           <span className="campaign-row-token">
             {campaign.token}
-            <span className={`campaign-badge campaign-badge-${campaign.mode}`}>{campaign.mode}</span>
             <span className={`campaign-state campaign-state-${state}`}>{STATE_LABEL[state]}</span>
           </span>
           <span className="campaign-row-target">
@@ -465,18 +455,6 @@ const CampaignForm: FC<{
       </label>
 
       <label className="campaign-field">
-        <span>Mode</span>
-        <select
-          aria-label="Campaign mode"
-          value={draft.mode}
-          onChange={e => set('mode', e.target.value as CampaignFormDraft['mode'])}
-        >
-          <option value="ftue">Personalized FTUE</option>
-          <option value="bypass">Boot straight into the scene</option>
-        </select>
-      </label>
-
-      <label className="campaign-field">
         <span>Target</span>
         <select
           aria-label="Target type"
@@ -508,41 +486,6 @@ const CampaignForm: FC<{
             onChange={e => set('targetWorld', e.target.value)}
           />
         </label>
-      )}
-
-      {draft.mode === 'ftue' && (
-        <>
-          <label className="campaign-field">
-            <span>FTUE title</span>
-            <input
-              aria-label="FTUE title"
-              value={draft.title}
-              maxLength={120}
-              placeholder="Summer is here"
-              onChange={e => set('title', e.target.value)}
-            />
-          </label>
-          <label className="campaign-field">
-            <span>CTA label</span>
-            <input
-              aria-label="CTA label"
-              value={draft.cta}
-              maxLength={40}
-              placeholder="Jump into Summer"
-              onChange={e => set('cta', e.target.value)}
-            />
-          </label>
-          <label className="campaign-field">
-            <span>Carousel place ids</span>
-            <textarea
-              aria-label="Carousel place ids"
-              value={draft.placeIds}
-              rows={2}
-              placeholder="Comma-separated place uuids. Empty uses the default featured list."
-              onChange={e => set('placeIds', e.target.value)}
-            />
-          </label>
-        </>
       )}
 
       <div className="campaign-field-row">

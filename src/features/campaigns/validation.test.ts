@@ -1,14 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import {
-  draftToInput,
-  emptyDraft,
-  parsePlaceIds,
-  toLocalDateTimeInput,
-  windowState,
-} from './validation'
-
-const UUID = '780f04dd-eba1-41a8-b109-74896c87e98b'
-const OTHER_UUID = '11111111-2222-3333-4444-555555555555'
+import { draftToInput, emptyDraft, toLocalDateTimeInput, windowState } from './validation'
 
 function genesisDraft(overrides: Partial<ReturnType<typeof emptyDraft>> = {}) {
   return { ...emptyDraft(), token: 'summer-26', targetPosition: '-9,-9', ...overrides }
@@ -21,12 +12,8 @@ describe('draftToInput', () => {
     expect(result).toEqual({
       input: {
         token: 'summer-26',
-        mode: 'ftue',
         targetType: 'genesis',
         targetPosition: '-9,-9',
-        title: null,
-        cta: null,
-        placeIds: [],
         startsAt: null,
         endsAt: null,
         enabled: false,
@@ -36,12 +23,11 @@ describe('draftToInput', () => {
 
   it('builds a world campaign without a parcel', () => {
     const result = draftToInput(
-      genesisDraft({ targetType: 'world', targetWorld: ' myworld.dcl.eth ', mode: 'bypass' })
+      genesisDraft({ targetType: 'world', targetWorld: ' myworld.dcl.eth ' })
     )
 
     expect(result).toEqual({
       input: expect.objectContaining({
-        mode: 'bypass',
         targetType: 'world',
         targetWorld: 'myworld.dcl.eth',
       }),
@@ -54,11 +40,6 @@ describe('draftToInput', () => {
     ['an empty token', { token: '' }],
     ['an over-long token', { token: 'a'.repeat(65) }],
     ['a malformed parcel', { targetPosition: '9' }],
-    ['an over-long title', { title: 'a'.repeat(121) }],
-    ['an over-long cta', { cta: 'a'.repeat(41) }],
-    ['a non-uuid place id', { placeIds: 'not-a-uuid' }],
-    ['repeated place ids', { placeIds: `${UUID}, ${UUID}` }],
-    ['too many place ids', { placeIds: new Array(11).fill(UUID).join(',') }],
   ])('rejects %s', (_label, overrides) => {
     expect(draftToInput(genesisDraft(overrides))).toHaveProperty('error')
   })
@@ -130,13 +111,6 @@ describe('date handling', () => {
 
     expect(result).toHaveProperty('error')
     expect((result as { error: string }).error).toMatch(/not a valid date/)
-  })
-})
-
-describe('parsePlaceIds', () => {
-  it('accepts commas, spaces and newlines and drops the blanks', () => {
-    expect(parsePlaceIds(` ${UUID},\n ${OTHER_UUID} ,, `)).toEqual([UUID, OTHER_UUID])
-    expect(parsePlaceIds('   ')).toEqual([])
   })
 })
 

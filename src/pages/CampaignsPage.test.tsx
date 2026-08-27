@@ -38,11 +38,7 @@ const authenticatedFetch = vi.fn()
 
 const SUMMER: Campaign = {
   token: 'summer-26',
-  mode: 'ftue',
   target: { type: 'genesis', position: '-9,-9' },
-  title: 'Summer is here',
-  cta: 'Jump into Summer',
-  placeIds: [],
   startsAt: null,
   endsAt: null,
   enabled: true,
@@ -65,11 +61,10 @@ describe('CampaignsPage', () => {
     signedIn(true)
   })
 
-  it('lists a campaign with its mode, target and live state', async () => {
+  it('lists a campaign with its target and live state', async () => {
     render(<CampaignsPage />)
 
     expect(await screen.findByText('summer-26')).toBeTruthy()
-    expect(document.querySelector('.campaign-badge-ftue')?.textContent).toBe('ftue')
     expect(screen.getByText('-9,-9')).toBeTruthy()
     expect(screen.getByText('LIVE')).toBeTruthy()
   })

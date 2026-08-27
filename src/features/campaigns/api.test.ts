@@ -16,11 +16,7 @@ function jsonResponse(body: unknown): Response {
 
 const CAMPAIGN: Campaign = {
   token: 'summer-26',
-  mode: 'ftue',
   target: { type: 'genesis', position: '-9,-9' },
-  title: 'Summer is here',
-  cta: 'Jump into Summer',
-  placeIds: [],
   startsAt: null,
   endsAt: null,
   enabled: true,
@@ -31,12 +27,8 @@ const CAMPAIGN: Campaign = {
 
 const INPUT: CampaignInput = {
   token: 'summer-26',
-  mode: 'ftue',
   targetType: 'genesis',
   targetPosition: '-9,-9',
-  title: null,
-  cta: null,
-  placeIds: [],
   startsAt: null,
   endsAt: null,
   enabled: false,
