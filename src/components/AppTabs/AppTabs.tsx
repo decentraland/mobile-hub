@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 import './AppTabs.css'
 
-export type AppView = 'map' | 'worlds' | 'curation' | 'versions'
+export type AppView = 'map' | 'worlds' | 'curation' | 'versions' | 'flags' | 'campaigns'
 
 interface AppTabsProps {
   activeView: AppView
@@ -34,6 +34,18 @@ export const AppTabs: FC<AppTabsProps> = ({ activeView, onViewChange }) => {
         onClick={() => onViewChange('versions')}
       >
         Versions
+      </button>
+      <button
+        className={`app-tab ${activeView === 'flags' ? 'app-tab-active' : ''}`}
+        onClick={() => onViewChange('flags')}
+      >
+        Feature Flags
+      </button>
+      <button
+        className={`app-tab ${activeView === 'campaigns' ? 'app-tab-active' : ''}`}
+        onClick={() => onViewChange('campaigns')}
+      >
+        Campaigns
       </button>
     </div>
   )

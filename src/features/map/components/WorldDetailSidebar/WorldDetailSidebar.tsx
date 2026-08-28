@@ -31,6 +31,8 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
   const [showTagEditor, setShowTagEditor] = useState(false)
   const [editingTags, setEditingTags] = useState<string[]>([])
   const [isSavingTags, setIsSavingTags] = useState(false)
+  // Local state to track current tags (updates after successful save)
+  const [currentTags, setCurrentTags] = useState<string[]>(worldPlace?.tags || [])
   // Handle Escape key to close sidebar
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -47,12 +49,17 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
     onBanToggle?.(!world.isBanned)
   }
 
+  // Sync local tags state when worldPlace prop changes
+  useEffect(() => {
+    setCurrentTags(worldPlace?.tags || [])
+  }, [worldPlace?.tags])
+
   // Initialize editing tags when tag editor opens
   useEffect(() => {
     if (showTagEditor) {
-      setEditingTags(worldPlace?.tags || [])
+      setEditingTags(currentTags)
     }
-  }, [showTagEditor, worldPlace])
+  }, [showTagEditor, currentTags])
 
   const handleSaveTags = async () => {
     if (worldPlace && onUpdateWorldTags) {
@@ -60,6 +67,8 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
       setIsSavingTags(true)
       try {
         await onUpdateWorldTags(editingTags)
+        // Optimistically update local tags state to reflect the save
+        setCurrentTags(editingTags)
         setShowTagEditor(false)
       } catch (err) {
         console.error('Failed to update world tags:', err)
@@ -71,6 +80,8 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
       setIsSavingTags(true)
       try {
         await onCreateWorldPlace(world.name, editingTags)
+        // Optimistically update local tags state to reflect the save
+        setCurrentTags(editingTags)
         setShowTagEditor(false)
       } catch (err) {
         console.error('Failed to create world place with tags:', err)
@@ -192,8 +203,8 @@ export const WorldDetailSidebar: FC<WorldDetailSidebarProps> = ({
               </div>
             ) : (
               <div className={styles.tags}>
-                {(worldPlace?.tags || []).length > 0 ? (
-                  (worldPlace?.tags || []).map(tag => (
+                {currentTags.length > 0 ? (
+                  currentTags.map(tag => (
                     <span key={tag} className={styles.curationTag}>{tag}</span>
                   ))
                 ) : (

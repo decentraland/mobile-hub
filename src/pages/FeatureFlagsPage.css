@@ -1,0 +1,433 @@
+.flags-page {
+  position: fixed;
+  inset: 0;
+  background: #1a1a1a;
+  padding-top: 80px;
+  overflow-y: auto;
+}
+
+.flags-container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.flags-header {
+  margin-bottom: 24px;
+}
+
+.flags-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.flags-header h1 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.flags-header p {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.flags-header code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #00d9ff;
+}
+
+.flags-warning {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.25);
+  border-radius: 8px;
+  color: #ffc107;
+  font-size: 13px;
+}
+
+.flags-loading {
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.flags-error {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 13px;
+}
+
+.flags-link-button {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 13px;
+  padding: 0;
+}
+
+.flags-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flag-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.flag-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.flag-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.flag-row-audit {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+}
+
+.flag-icon-button {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.flag-icon-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.flag-icon-button-danger:hover {
+  background: rgba(255, 68, 68, 0.15);
+  border-color: rgba(255, 68, 68, 0.4);
+  color: #ff6b6b;
+}
+
+.flag-description-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flag-description-editor textarea,
+.flag-value-editor input,
+.flag-create-field textarea,
+.flag-create-field select,
+.flag-create-field input {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.flag-description-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.flag-type-badge {
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: rgba(190, 75, 255, 0.15);
+  border: 1px solid rgba(190, 75, 255, 0.4);
+  border-radius: 4px;
+  color: #c77dff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  vertical-align: 2px;
+}
+
+.flag-value-chip {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 12px;
+  background: rgba(0, 217, 255, 0.08);
+  border: 1px solid rgba(0, 217, 255, 0.25);
+  border-radius: 8px;
+  color: #00d9ff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: monospace;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.flag-value-chip:hover:not(:disabled) {
+  background: rgba(0, 217, 255, 0.15);
+}
+
+.flag-value-chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.flag-value-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flag-value-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.flag-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  background: rgba(0, 217, 255, 0.04);
+  border: 1px solid rgba(0, 217, 255, 0.2);
+  border-radius: 12px;
+}
+
+.flag-create-form h2 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.flag-create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flag-create-field > span {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+}
+
+.flag-create-enabled {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.flag-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.flags-diff-delete {
+  color: #ff6b6b;
+}
+
+.flags-button-danger {
+  padding: 8px 16px;
+  background: #e5484d;
+  border: 1px solid #e5484d;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.flags-button-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.flag-row-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flag-row-name {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.flag-row-hint {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.flag-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.flag-switch-on {
+  background: rgba(0, 217, 255, 0.15);
+  border-color: rgba(0, 217, 255, 0.4);
+  color: #00d9ff;
+}
+
+.flag-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.flag-switch-knob {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.flags-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.flags-modal {
+  background: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 24px;
+  width: min(420px, calc(100vw - 48px));
+}
+
+.flags-modal h3 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.flags-modal p {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.flags-diff {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+
+.flags-diff code {
+  color: #00d9ff;
+  font-size: 14px;
+}
+
+.flags-diff-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.flags-diff-from {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.flags-diff-arrow {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.flags-diff-to {
+  color: #00d9ff;
+}
+
+.flags-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.flags-button-secondary {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.flags-button-primary {
+  padding: 8px 16px;
+  background: #00d9ff;
+  border: 1px solid #00d9ff;
+  border-radius: 8px;
+  color: #0b0b0b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.flags-button-primary:disabled,
+.flags-button-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
