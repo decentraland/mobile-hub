@@ -42,5 +42,9 @@
     "vite": "^7.2.4",
     "vitest": "^4.1.10"
   },
-  "homepage": ""
+  "homepage": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/decentraland/mobile-hub.git"
+  }
 }
