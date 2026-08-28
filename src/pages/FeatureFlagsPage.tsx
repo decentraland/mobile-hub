@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState, type FC } from 'react'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
-import { useAuth } from '../contexts/auth'
-import { isDevMode } from '../utils/devIdentity'
 import {
-  fetchFeatureFlags,
   fetchFeatureFlagsDetailed,
   createFeatureFlag,
   updateFeatureFlag,
@@ -36,23 +33,8 @@ function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`
 }
 
-function publicValueToFlag(name: string, value: boolean | string | number): FeatureFlag {
-  const type: FlagType = typeof value === 'boolean' ? 'on-off' : typeof value === 'number' ? 'number' : 'text'
-  return {
-    name,
-    type,
-    enabled: value === true,
-    value: typeof value === 'boolean' ? null : value,
-    description: null,
-    updatedAt: '',
-    updatedBy: null,
-  }
-}
-
 export const FeatureFlagsPage: FC = () => {
   const authenticatedFetch = useAuthenticatedFetch()
-  const { isSignedIn } = useAuth()
-  const canEdit = isSignedIn || isDevMode()
 
   const [flags, setFlags] = useState<FeatureFlag[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -66,18 +48,13 @@ export const FeatureFlagsPage: FC = () => {
     setIsLoading(true)
     setLoadError(null)
     try {
-      if (canEdit) {
-        setFlags(sortByName(await fetchFeatureFlagsDetailed(authenticatedFetch)))
-      } else {
-        const map = await fetchFeatureFlags()
-        setFlags(sortByName(Object.entries(map).map(([name, value]) => publicValueToFlag(name, value))))
-      }
+      setFlags(sortByName(await fetchFeatureFlagsDetailed(authenticatedFetch)))
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load feature flags')
     } finally {
       setIsLoading(false)
     }
-  }, [canEdit, authenticatedFetch])
+  }, [authenticatedFetch])
 
   useEffect(() => {
     loadFlags()
@@ -148,7 +125,7 @@ export const FeatureFlagsPage: FC = () => {
         <header className="flags-header">
           <div className="flags-header-row">
             <h1>Feature Flags</h1>
-            {canEdit && !showCreate && (
+            {!showCreate && (
               <button className="flags-button-primary" onClick={() => setShowCreate(true)}>
                 New flag
               </button>
@@ -160,11 +137,6 @@ export const FeatureFlagsPage: FC = () => {
             godot-explorer deep-link params (e.g. <code>pulse</code>,{' '}
             <code>dual-channel</code>).
           </p>
-          {!canEdit && (
-            <div className="flags-warning">
-              Sign in with an allowed wallet to edit feature flags.
-            </div>
-          )}
         </header>
 
         {isLoading && <div className="flags-loading">Loading…</div>}
@@ -191,7 +163,6 @@ export const FeatureFlagsPage: FC = () => {
               <FlagRow
                 key={flag.name}
                 flag={flag}
-                canEdit={canEdit}
                 isEditingDescription={editingName === flag.name}
                 isEditingValue={editingValueName === flag.name}
                 authenticatedFetch={authenticatedFetch}
@@ -224,7 +195,6 @@ type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>
 
 const FlagRow: FC<{
   flag: FeatureFlag
-  canEdit: boolean
   isEditingDescription: boolean
   isEditingValue: boolean
   authenticatedFetch: AuthenticatedFetch
@@ -238,7 +208,6 @@ const FlagRow: FC<{
   onRequestDelete: () => void
 }> = ({
   flag,
-  canEdit,
   isEditingDescription,
   isEditingValue,
   authenticatedFetch,
@@ -268,7 +237,7 @@ const FlagRow: FC<{
         )}
       </div>
       <div className="flag-row-actions">
-        {canEdit && !isEditingDescription && (
+        {!isEditingDescription && (
           <>
             <button
               className="flag-icon-button"
@@ -294,8 +263,7 @@ const FlagRow: FC<{
             aria-checked={flag.enabled}
             aria-label={`Toggle ${flag.name}`}
             className={`flag-switch ${flag.enabled ? 'flag-switch-on' : ''}`}
-            disabled={!canEdit}
-            title={canEdit ? `Turn ${flag.name} ${flag.enabled ? 'off' : 'on'}` : 'Sign in to edit'}
+            title={`Turn ${flag.name} ${flag.enabled ? 'off' : 'on'}`}
             onClick={onToggle}
           >
             <span className="flag-switch-state">{flag.enabled ? 'ON' : 'OFF'}</span>
@@ -305,8 +273,8 @@ const FlagRow: FC<{
           <button
             className="flag-value-chip"
             aria-label={`Edit ${flag.name} value`}
-            disabled={!canEdit || isEditingValue}
-            title={canEdit ? `Edit ${flag.name} value` : 'Sign in to edit'}
+            disabled={isEditingValue}
+            title={`Edit ${flag.name} value`}
             onClick={onStartEditValue}
           >
             {String(flag.value ?? '')}

@@ -2,9 +2,6 @@ import { config } from '../../config'
 
 const API_BASE = config.get('MOBILE_BFF_URL')
 
-// on-off flags map to a boolean, text flags to a string, number flags to a number
-export type FeatureFlags = Record<string, boolean | string | number>
-
 export type FlagType = 'on-off' | 'text' | 'number'
 
 export interface FeatureFlag {
@@ -33,12 +30,6 @@ async function unwrap<T>(response: Response, fallbackError: string): Promise<T> 
   }
 
   return json.data
-}
-
-export async function fetchFeatureFlags(): Promise<FeatureFlags> {
-  const response = await fetch(`${API_BASE}/feature-flags`)
-  const data = await unwrap<{ flags: FeatureFlags }>(response, 'Failed to fetch feature flags')
-  return data.flags
 }
 
 export async function fetchFeatureFlagsDetailed(

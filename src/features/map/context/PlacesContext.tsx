@@ -1,8 +1,6 @@
 import { useReducer, useEffect, useCallback, type ReactNode } from 'react';
 import { PlacesContext } from './placesContextDef';
 import { useAuthenticatedFetch } from '../../../hooks/useAuthenticatedFetch';
-import { useAuth } from '../../../contexts/auth';
-import { isDevMode } from '../../../utils/devIdentity';
 import * as api from '../api/placesApi';
 import type { PlacesState, PlacesAction, ParcelCoord, Place, PlaceGroup } from '../types';
 
@@ -184,7 +182,6 @@ interface PlacesProviderProps {
 export function PlacesProvider({ children }: PlacesProviderProps) {
   const [state, dispatch] = useReducer(placesReducer, initialState);
   const authenticatedFetch = useAuthenticatedFetch();
-  const { isSignedIn } = useAuth();
 
   const loadPlaces = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -206,19 +203,11 @@ export function PlacesProvider({ children }: PlacesProviderProps) {
     }
   }, [authenticatedFetch]);
 
-  // Load places and groups from API when signed in (or in dev mode)
+  // AccessGate only mounts this provider for an authorized wallet, so no sign-in check here
   useEffect(() => {
-    const canLoad = isSignedIn || isDevMode();
-
-    if (!canLoad) {
-      dispatch({ type: 'LOAD_PLACES', payload: [] });
-      dispatch({ type: 'LOAD_PLACE_GROUPS', payload: [] });
-      return;
-    }
-
     loadPlaces();
     loadPlaceGroups();
-  }, [isSignedIn, loadPlaces, loadPlaceGroups]);
+  }, [loadPlaces, loadPlaceGroups]);
 
   const createPlace = useCallback(async (input: api.CreatePlaceInput): Promise<Place | null> => {
     dispatch({ type: 'SET_LOADING', payload: true });

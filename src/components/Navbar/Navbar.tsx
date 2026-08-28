@@ -9,7 +9,9 @@ interface NavbarProps {
 }
 
 export const Navbar: FC<NavbarProps> = ({ tabs }) => {
-  const { avatar, wallet, isSignedIn, isConnecting, signIn, signOut } = useAuth()
+  // AccessGate renders the sign-in screen instead of the app, so by the time the
+  // navbar mounts the wallet is signed in and authorized (or we are in dev mode).
+  const { avatar, wallet, isConnecting, signOut } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [devAddress, setDevAddress] = useState<string | null>(null)
 
@@ -53,22 +55,6 @@ export const Navbar: FC<NavbarProps> = ({ tabs }) => {
               </span>
             )}
           </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!isSignedIn) {
-    return (
-      <div className="navbar-container">
-        <div className="navbar-bar">
-          {tabs}
-        </div>
-        <div className="navbar-bar">
-          <button className="navbar-button" onClick={signIn}>
-            <span className="navbar-button-icon">👤</span>
-            Sign In
-          </button>
         </div>
       </div>
     )

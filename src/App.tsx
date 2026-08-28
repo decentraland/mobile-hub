@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { ChainId } from '@dcl/schemas'
 import { AuthProvider } from './contexts/auth'
+import { AccessGate } from './features/access'
 import { BansProvider } from './features/map/context/BansContext'
 import { Navbar } from './components/Navbar'
 import { AppTabs, type AppView } from './components/AppTabs'
@@ -26,17 +27,19 @@ function App() {
   return (
     <BrowserRouter basename={basename}>
       <AuthProvider config={authConfig}>
-        <BansProvider>
-          <Navbar
-            tabs={<AppTabs activeView={activeView} onViewChange={setActiveView} />}
-          />
-          {activeView === 'map' && <MapPage />}
-          {activeView === 'worlds' && <WorldsPage />}
-          {activeView === 'curation' && <CurationPage />}
-          {activeView === 'versions' && <VersionsPage />}
-          {activeView === 'flags' && <FeatureFlagsPage />}
-          {activeView === 'campaigns' && <CampaignsPage />}
-        </BansProvider>
+        <AccessGate>
+          <BansProvider>
+            <Navbar
+              tabs={<AppTabs activeView={activeView} onViewChange={setActiveView} />}
+            />
+            {activeView === 'map' && <MapPage />}
+            {activeView === 'worlds' && <WorldsPage />}
+            {activeView === 'curation' && <CurationPage />}
+            {activeView === 'versions' && <VersionsPage />}
+            {activeView === 'flags' && <FeatureFlagsPage />}
+            {activeView === 'campaigns' && <CampaignsPage />}
+          </BansProvider>
+        </AccessGate>
       </AuthProvider>
     </BrowserRouter>
   )

@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState, type FC } from 'react'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
-import { useAuth } from '../contexts/auth'
-import { isDevMode } from '../utils/devIdentity'
 import {
   fetchCampaigns,
   createCampaign,
@@ -35,8 +33,6 @@ function draftFromCampaign(campaign: Campaign): CampaignFormDraft {
 
 export const CampaignsPage: FC = () => {
   const authenticatedFetch = useAuthenticatedFetch()
-  const { isSignedIn } = useAuth()
-  const canEdit = isSignedIn || isDevMode()
 
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -58,12 +54,8 @@ export const CampaignsPage: FC = () => {
   }, [authenticatedFetch])
 
   useEffect(() => {
-    if (!canEdit) {
-      setIsLoading(false)
-      return
-    }
     loadCampaigns()
-  }, [canEdit, loadCampaigns])
+  }, [loadCampaigns])
 
   const replaceCampaign = (updated: Campaign) => {
     setCampaigns(prev => (prev ? prev.map(c => (c.token === updated.token ? updated : c)) : prev))
@@ -92,7 +84,7 @@ export const CampaignsPage: FC = () => {
         <header className="campaigns-header">
           <div className="campaigns-header-row">
             <h1>Ad Campaigns</h1>
-            {canEdit && !showCreate && (
+            {!showCreate && (
               <button className="campaigns-button-primary" onClick={() => setShowCreate(true)}>
                 New campaign
               </button>
@@ -108,14 +100,9 @@ export const CampaignsPage: FC = () => {
             Changes are live on the next app launch — no release needed. A campaign is live
             as soon as it exists; to stop one, delete it.
           </p>
-          {!canEdit && (
-            <div className="campaigns-warning">
-              Sign in with an allowed wallet to manage campaigns.
-            </div>
-          )}
         </header>
 
-        {isLoading && canEdit && <div className="campaigns-loading">Loading…</div>}
+        {isLoading && <div className="campaigns-loading">Loading…</div>}
         {loadError && (
           <div className="campaigns-error">
             {loadError}{' '}
@@ -174,7 +161,6 @@ export const CampaignsPage: FC = () => {
                 <CampaignRow
                   key={campaign.token}
                   campaign={campaign}
-                  canEdit={canEdit}
                   onEdit={() => setEditingToken(campaign.token)}
                   onRequestDelete={() =>
                     setConfirm({ status: 'confirming', token: campaign.token })
@@ -199,10 +185,9 @@ export const CampaignsPage: FC = () => {
 
 const CampaignRow: FC<{
   campaign: Campaign
-  canEdit: boolean
   onEdit: () => void
   onRequestDelete: () => void
-}> = ({ campaign, canEdit, onEdit, onRequestDelete }) => (
+}> = ({ campaign, onEdit, onRequestDelete }) => (
   <section className="campaign-row">
     <div className="campaign-row-main">
       <div className="campaign-row-labels">
@@ -212,26 +197,24 @@ const CampaignRow: FC<{
           <code>{describeTarget(campaign.target)}</code>
         </span>
       </div>
-      {canEdit && (
-        <div className="campaign-row-actions">
-          <button
-            className="campaign-icon-button"
-            aria-label={`Edit ${campaign.token}`}
-            title="Edit campaign"
-            onClick={onEdit}
-          >
-            ✎
-          </button>
-          <button
-            className="campaign-icon-button campaign-icon-button-danger"
-            aria-label={`Delete ${campaign.token}`}
-            title="Delete campaign"
-            onClick={onRequestDelete}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      <div className="campaign-row-actions">
+        <button
+          className="campaign-icon-button"
+          aria-label={`Edit ${campaign.token}`}
+          title="Edit campaign"
+          onClick={onEdit}
+        >
+          ✎
+        </button>
+        <button
+          className="campaign-icon-button campaign-icon-button-danger"
+          aria-label={`Delete ${campaign.token}`}
+          title="Delete campaign"
+          onClick={onRequestDelete}
+        >
+          ✕
+        </button>
+      </div>
     </div>
   </section>
 )

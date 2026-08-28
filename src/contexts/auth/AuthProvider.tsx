@@ -17,7 +17,10 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children, config: userConf
   const [wallet, setWallet] = useState<string>()
   const [avatar, setAvatar] = useState<Avatar>()
   const [isSignedIn, setIsSignedIn] = useState(false)
-  const [isConnecting, setIsConnecting] = useState(false)
+  // Starts true: the mount effect below always runs, and until it does we cannot
+  // know whether there is a session. Starting false makes consumers render their
+  // signed-out UI for one frame on every load.
+  const [isConnecting, setIsConnecting] = useState(true)
   const [chainId, setChainId] = useState<ChainId>(config.defaultChainId)
 
   // Sign in - redirect to auth page
