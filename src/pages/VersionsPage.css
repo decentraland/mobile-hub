@@ -417,3 +417,80 @@
   gap: 10px;
   margin-top: 8px;
 }
+
+.versions-tracks {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+
+.versions-tracks-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.versions-tracks-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+.versions-tracks-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.versions-track-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 5px 14px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.versions-track-pill:hover {
+  border-color: rgba(0, 217, 255, 0.4);
+  color: #fff;
+}
+
+.versions-track-pill-active {
+  background: rgba(0, 217, 255, 0.12);
+  border-color: rgba(0, 217, 255, 0.5);
+  color: #00d9ff;
+}
+
+.versions-tracks-endpoint {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.versions-tracks-note {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+.versions-tracks-note code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #00d9ff;
+}
+
+.versions-tracks .versions-warning code {
+  background: rgba(255, 193, 7, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #ffc107;
+}

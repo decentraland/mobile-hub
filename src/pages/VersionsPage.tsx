@@ -3,10 +3,15 @@ import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
 import { useAuth } from '../contexts/auth'
 import { isDevMode } from '../utils/devIdentity'
 import {
+  CURRENT_TRACK,
+  LEGACY_MINIMAL_VERSION_CAP,
+  LEGACY_TRACK,
+  fetchAppVersionTracks,
   fetchAppVersions,
   fetchGodotExplorerVersion,
   updateAppVersions,
   type AppVersions,
+  type AppVersionsTrack,
   type BranchVersion,
   type GodotExplorerBranch,
   type PlatformVersions,
@@ -19,9 +24,15 @@ type DraftState = Record<Platform, { min: string; rec: string }>
 
 type ConfirmState =
   | { status: 'idle' }
-  | { status: 'confirming'; next: AppVersions; previous: AppVersions }
-  | { status: 'saving'; next: AppVersions; previous: AppVersions }
-  | { status: 'error'; next: AppVersions; previous: AppVersions; message: string }
+  | { status: 'confirming'; track: string; next: AppVersions; previous: AppVersions }
+  | { status: 'saving'; track: string; next: AppVersions; previous: AppVersions }
+  | {
+      status: 'error'
+      track: string
+      next: AppVersions
+      previous: AppVersions
+      message: string
+    }
 
 const EMPTY_DRAFT: DraftState = {
   ios: { min: '', rec: '' },
@@ -66,13 +77,17 @@ export const VersionsPage: FC = () => {
   const { isSignedIn } = useAuth()
   const canEdit = isSignedIn || isDevMode()
 
-  const [current, setCurrent] = useState<AppVersions | null>(null)
+  const [tracks, setTracks] = useState<AppVersionsTrack[] | null>(null)
+  const [selectedTrack, setSelectedTrack] = useState<string>(CURRENT_TRACK)
+  const [canListTracks, setCanListTracks] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null)
   const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT)
   const [confirm, setConfirm] = useState<ConfirmState>({ status: 'idle' })
+
+  const current = tracks?.find(entry => entry.track === selectedTrack) ?? null
 
   const [godotMain, setGodotMain] = useState<BranchVersion | null>(null)
   const [godotRelease, setGodotRelease] = useState<BranchVersion | null>(null)
@@ -82,19 +97,42 @@ export const VersionsPage: FC = () => {
     setIsLoading(true)
     setLoadError(null)
     try {
-      const data = await fetchAppVersions()
-      setCurrent(data)
-      setDraft(toDraft(data))
+      let loaded: AppVersionsTrack[]
+      let listed = true
+      try {
+        loaded = await fetchAppVersionTracks(authenticatedFetch)
+      } catch {
+        // Not signed in, or not on the allow list. The public endpoint exposes one track,
+        // and the bare route is the legacy one, so show that read-only.
+        listed = false
+        const legacy = await fetchAppVersions()
+        loaded = [{ track: LEGACY_TRACK, ...legacy, updatedAt: '', updatedBy: null }]
+      }
+      setCanListTracks(listed)
+      setTracks(loaded)
+      setSelectedTrack(previous => {
+        if (loaded.some(entry => entry.track === previous)) return previous
+        const preferred =
+          loaded.find(entry => entry.track === CURRENT_TRACK) ?? loaded[0]
+        return preferred?.track ?? CURRENT_TRACK
+      })
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load versions')
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [authenticatedFetch])
 
   useEffect(() => {
     loadAppVersions()
   }, [loadAppVersions])
+
+  // `current` keeps its identity until the track list or the selection changes, so this
+  // only re-seeds the draft on an actual track switch or a reload.
+  useEffect(() => {
+    if (!current || editingPlatform) return
+    setDraft(toDraft(current))
+  }, [current, editingPlatform])
 
   useEffect(() => {
     let cancelled = false
@@ -120,6 +158,12 @@ export const VersionsPage: FC = () => {
       cancelled = true
     }
   }, [])
+
+  const handleSelectTrack = (track: string) => {
+    if (track === selectedTrack) return
+    setEditingPlatform(null)
+    setSelectedTrack(track)
+  }
 
   const handleStartEdit = (platform: Platform) => {
     if (!current) return
@@ -159,22 +203,28 @@ export const VersionsPage: FC = () => {
       return
     }
 
-    setConfirm({ status: 'confirming', next, previous: current })
+    setConfirm({ status: 'confirming', track: selectedTrack, next, previous: current })
   }
 
   const handleConfirmSave = async () => {
     if (confirm.status !== 'confirming' && confirm.status !== 'error') return
-    const { next, previous } = confirm
-    setConfirm({ status: 'saving', next, previous })
+    const { track, next, previous } = confirm
+    setConfirm({ status: 'saving', track, next, previous })
     try {
-      const updated = await updateAppVersions(authenticatedFetch, next)
-      setCurrent(updated)
-      setDraft(toDraft(updated))
+      const updated = await updateAppVersions(authenticatedFetch, track, next)
+      setTracks(previousTracks =>
+        previousTracks
+          ? previousTracks.map(entry =>
+              entry.track === track ? { ...entry, ...updated } : entry
+            )
+          : previousTracks
+      )
       setEditingPlatform(null)
       setConfirm({ status: 'idle' })
     } catch (err) {
       setConfirm({
         status: 'error',
+        track,
         next,
         previous,
         message: err instanceof Error ? err.message : 'Failed to save',
@@ -196,7 +246,7 @@ export const VersionsPage: FC = () => {
         <header className="versions-header">
           <h1>App Versions</h1>
           <p>
-            Force and recommended versions served by <code>GET /app-versions</code>.
+            Force and recommended versions the explorer reads on boot, one set per track.
             Numbers follow the godot-explorer encoding{' '}
             <code>major × 100000 + minor × 100 + patch</code> (e.g.{' '}
             <code>0.64.3</code> → <code>6403</code>).
@@ -223,6 +273,15 @@ export const VersionsPage: FC = () => {
           release={godotRelease}
           error={godotError}
         />
+
+        {current && (
+          <TrackSelector
+            tracks={tracks ?? []}
+            selected={selectedTrack}
+            canListTracks={canListTracks}
+            onSelect={handleSelectTrack}
+          />
+        )}
 
         {current && (
           <div className="versions-cards">
@@ -270,6 +329,65 @@ export const VersionsPage: FC = () => {
         />
       )}
     </div>
+  )
+}
+
+const TrackSelector: FC<{
+  tracks: AppVersionsTrack[]
+  selected: string
+  canListTracks: boolean
+  onSelect: (track: string) => void
+}> = ({ tracks, selected, canListTracks, onSelect }) => {
+  const active = tracks.find(entry => entry.track === selected)
+  const endpoint =
+    selected === LEGACY_TRACK ? '/app-versions' : `/app-versions/${selected}`
+
+  return (
+    <section className="versions-tracks">
+      <div className="versions-tracks-row">
+        <span className="versions-tracks-label">Track</span>
+        <div className="versions-tracks-pills">
+          {tracks.map(entry => (
+            <button
+              key={entry.track}
+              className={`versions-track-pill${
+                entry.track === selected ? ' versions-track-pill-active' : ''
+              }`}
+              onClick={() => onSelect(entry.track)}
+            >
+              {entry.track}
+            </button>
+          ))}
+        </div>
+        <code className="versions-tracks-endpoint">GET {endpoint}</code>
+      </div>
+
+      {!canListTracks && (
+        <div className="versions-tracks-note">
+          Showing the <code>{LEGACY_TRACK}</code> track only — sign in with an allowed
+          wallet to see the rest.
+        </div>
+      )}
+
+      {active?.updatedAt && (
+        <div className="versions-tracks-note">
+          Last changed {new Date(active.updatedAt).toLocaleString()}
+          {active.updatedBy ? ` by ${active.updatedBy}` : ''}
+        </div>
+      )}
+
+      {selected === LEGACY_TRACK && (
+        <div className="versions-warning">
+          <strong>Frozen track.</strong> Every build up to and including 1.13.1 draws the
+          update dialog underneath the startup splash and never dismisses it, so forcing
+          an update here leaves them on an endless startup spinner. The server refuses any
+          force value above <code>{LEGACY_MINIMAL_VERSION_CAP}</code> on this track.
+          Recommended updates still show correctly on those builds. To force an update,
+          use the <code>{CURRENT_TRACK}</code> track, which only clients carrying the fix
+          read.
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -457,7 +575,10 @@ const ConfirmDialog: FC<{
     <div className="versions-modal-backdrop" onClick={saving ? undefined : onCancel}>
       <div className="versions-modal" onClick={e => e.stopPropagation()}>
         <h3>Confirm version change</h3>
-        <p>Review the new values — this will update production settings immediately.</p>
+        <p>
+          Review the new values — this updates the <code>{state.track}</code> track
+          immediately.
+        </p>
 
         <div className="versions-diff">
           <DiffBlock

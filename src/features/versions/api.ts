@@ -16,14 +16,41 @@ export interface AppVersions {
   android: PlatformVersions
 }
 
+export interface AppVersionsTrack extends AppVersions {
+  track: string
+  updatedAt: string
+  updatedBy: string | null
+}
+
+/** Served by the bare `GET /app-versions`, which is all a client up to 1.13.1 can call. */
+export const LEGACY_TRACK = 'legacy'
+
+/**
+ * The track clients carrying the overlay fix read. The fix ships as another 1.13.1 build,
+ * so the version number cannot tell a fixed client from a broken one — asking for this
+ * track is what identifies it.
+ */
+export const CURRENT_TRACK = 'v2'
+
+/**
+ * Ceiling the BFF enforces on `legacy.minimalRequiredVersionNumber`. Every build from
+ * 1.12.0 up to and including 1.13.1 draws the force-update overlay below the startup
+ * splash and never dismisses it, so a hard gate leaves them on an unrecoverable startup
+ * spinner instead of the update dialog. Their thresholds are frozen; raise the minimum on
+ * `v2` instead. Recommended (soft) versions still render correctly there and are
+ * unrestricted.
+ */
+export const LEGACY_MINIMAL_VERSION_CAP = 101200
+
 interface ApiResponse<T> {
   ok: boolean
   data?: T
   error?: string
 }
 
-export async function fetchAppVersions(): Promise<AppVersions> {
-  const response = await fetch(`${API_BASE}/app-versions`)
+export async function fetchAppVersions(track?: string): Promise<AppVersions> {
+  const path = track ? `/app-versions/${track}` : '/app-versions'
+  const response = await fetch(`${API_BASE}${path}`)
   const json: ApiResponse<AppVersions> = await response.json()
 
   if (!json.ok || !json.data) {
@@ -33,14 +60,29 @@ export async function fetchAppVersions(): Promise<AppVersions> {
   return json.data
 }
 
+/** Lists every track. Requires an allowed wallet — the public endpoints serve one track each. */
+export async function fetchAppVersionTracks(
+  authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>
+): Promise<AppVersionsTrack[]> {
+  const response = await authenticatedFetch(`${API_BASE}/backoffice/app-versions`)
+  const json: ApiResponse<{ tracks: AppVersionsTrack[] }> = await response.json()
+
+  if (!json.ok || !json.data) {
+    throw new Error(json.error || 'Failed to fetch app version tracks')
+  }
+
+  return json.data.tracks
+}
+
 export async function updateAppVersions(
   authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>,
+  track: string,
   values: AppVersions
 ): Promise<AppVersions> {
   const response = await authenticatedFetch(`${API_BASE}/backoffice/app-versions`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(values),
+    body: JSON.stringify({ track, ...values }),
   })
   const json: ApiResponse<AppVersions> = await response.json()
 
