@@ -11,6 +11,7 @@ import { CurationPage } from './pages/CurationPage'
 import { VersionsPage } from './pages/VersionsPage'
 import { FeatureFlagsPage } from './pages/FeatureFlagsPage'
 import { CampaignsPage } from './pages/CampaignsPage'
+import { PushPage } from './pages/PushPage'
 import { config } from './config'
 
 const authConfig = {
@@ -36,6 +37,7 @@ function App() {
           {activeView === 'versions' && <VersionsPage />}
           {activeView === 'flags' && <FeatureFlagsPage />}
           {activeView === 'campaigns' && <CampaignsPage />}
+          {activeView === 'push' && <PushPage />}
         </BansProvider>
       </AuthProvider>
     </BrowserRouter>
