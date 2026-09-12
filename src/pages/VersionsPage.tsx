@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState, type FC } from 'react'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
-import { useAuth } from '../contexts/auth'
-import { isDevMode } from '../utils/devIdentity'
 import {
   CURRENT_TRACK,
   LEGACY_MINIMAL_VERSION_CAP,
@@ -74,8 +72,6 @@ function validatePlatform(draft: { min: string; rec: string }): {
 
 export const VersionsPage: FC = () => {
   const authenticatedFetch = useAuthenticatedFetch()
-  const { isSignedIn } = useAuth()
-  const canEdit = isSignedIn || isDevMode()
 
   const [tracks, setTracks] = useState<AppVersionsTrack[] | null>(null)
   const [selectedTrack, setSelectedTrack] = useState<string>(CURRENT_TRACK)
@@ -251,11 +247,6 @@ export const VersionsPage: FC = () => {
             <code>major × 100000 + minor × 100 + patch</code> (e.g.{' '}
             <code>0.64.3</code> → <code>6403</code>).
           </p>
-          {!canEdit && (
-            <div className="versions-warning">
-              Sign in with an allowed wallet to edit versions.
-            </div>
-          )}
         </header>
 
         {isLoading && <div className="versions-loading">Loading…</div>}
@@ -291,7 +282,6 @@ export const VersionsPage: FC = () => {
               current={current.ios}
               draft={draft.ios}
               isEditing={editingPlatform === 'ios'}
-              disabled={!canEdit}
               validationError={editingPlatform === 'ios' ? iosValidation.error : undefined}
               canSave={editingPlatform === 'ios' && canSave}
               onStartEdit={() => handleStartEdit('ios')}
@@ -305,7 +295,6 @@ export const VersionsPage: FC = () => {
               current={current.android}
               draft={draft.android}
               isEditing={editingPlatform === 'android'}
-              disabled={!canEdit}
               validationError={
                 editingPlatform === 'android' ? androidValidation.error : undefined
               }
@@ -397,7 +386,6 @@ interface PlatformCardProps {
   current: PlatformVersions
   draft: { min: string; rec: string }
   isEditing: boolean
-  disabled: boolean
   validationError: string | undefined
   canSave: boolean
   onStartEdit: () => void
@@ -412,7 +400,6 @@ const PlatformCard: FC<PlatformCardProps> = ({
   current,
   draft,
   isEditing,
-  disabled,
   validationError,
   canSave,
   onStartEdit,
@@ -428,8 +415,7 @@ const PlatformCard: FC<PlatformCardProps> = ({
           <button
             className="version-edit-button"
             onClick={onStartEdit}
-            disabled={disabled}
-            title={disabled ? 'Sign in to edit' : 'Edit versions'}
+            title="Edit versions"
             aria-label={`Edit ${label} versions`}
           >
             ✎

@@ -3,36 +3,27 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FeatureFlagsPage } from './FeatureFlagsPage'
 import {
-  fetchFeatureFlags,
   fetchFeatureFlagsDetailed,
   createFeatureFlag,
   updateFeatureFlag,
   deleteFeatureFlag,
   type FeatureFlag,
 } from '../features/flags/api'
-import { useAuth } from '../contexts/auth'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
-import { isDevMode } from '../utils/devIdentity'
 
 vi.mock('../features/flags/api', () => ({
-  fetchFeatureFlags: vi.fn(),
   fetchFeatureFlagsDetailed: vi.fn(),
   createFeatureFlag: vi.fn(),
   updateFeatureFlag: vi.fn(),
   deleteFeatureFlag: vi.fn(),
 }))
-vi.mock('../contexts/auth', () => ({ useAuth: vi.fn() }))
 vi.mock('../hooks/useAuthenticatedFetch', () => ({ useAuthenticatedFetch: vi.fn() }))
-vi.mock('../utils/devIdentity', () => ({ isDevMode: vi.fn() }))
 
-const mockFetchFlags = vi.mocked(fetchFeatureFlags)
 const mockFetchDetailed = vi.mocked(fetchFeatureFlagsDetailed)
 const mockCreateFlag = vi.mocked(createFeatureFlag)
 const mockUpdateFlag = vi.mocked(updateFeatureFlag)
 const mockDeleteFlag = vi.mocked(deleteFeatureFlag)
-const mockUseAuth = vi.mocked(useAuth)
 const mockUseAuthenticatedFetch = vi.mocked(useAuthenticatedFetch)
-const mockIsDevMode = vi.mocked(isDevMode)
 
 const authenticatedFetch = vi.fn()
 
@@ -69,20 +60,16 @@ const SENTRY_SAMPLE_RATE: FeatureFlag = {
 describe('FeatureFlagsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseAuth.mockReturnValue({ isSignedIn: true } as ReturnType<typeof useAuth>)
     mockUseAuthenticatedFetch.mockReturnValue(authenticatedFetch)
-    mockIsDevMode.mockReturnValue(false)
     mockFetchDetailed.mockResolvedValue([DUAL_CHANNEL, PULSE, SENTRY_SAMPLE_RATE])
-    mockFetchFlags.mockResolvedValue({ pulse: false, 'dual-channel': true, 'sentry-sample-rate': 1 })
   })
 
-  it('loads detailed flags for editors and renders state and descriptions', async () => {
+  it('loads detailed flags and renders state and descriptions', async () => {
     render(<FeatureFlagsPage />)
 
     const pulseSwitch = await screen.findByRole('switch', { name: 'Toggle pulse' })
 
     expect(mockFetchDetailed).toHaveBeenCalledWith(authenticatedFetch)
-    expect(mockFetchFlags).not.toHaveBeenCalled()
     expect(pulseSwitch.getAttribute('aria-checked')).toBe('false')
     expect(screen.getByRole('switch', { name: 'Toggle dual-channel' }).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByText('Pulse avatar transport')).toBeTruthy()
@@ -97,28 +84,6 @@ describe('FeatureFlagsPage', () => {
     expect(chip.textContent).toBe('1')
     expect(screen.getByText('number')).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Toggle sentry-sample-rate' })).toBeNull()
-  })
-
-  it('falls back to the public endpoint and disables editing for read-only viewers', async () => {
-    mockUseAuth.mockReturnValue({ isSignedIn: false } as ReturnType<typeof useAuth>)
-    mockIsDevMode.mockReturnValue(false)
-
-    render(<FeatureFlagsPage />)
-
-    const pulseSwitch = await screen.findByRole('switch', { name: 'Toggle pulse' })
-
-    expect(mockFetchFlags).toHaveBeenCalled()
-    expect(mockFetchDetailed).not.toHaveBeenCalled()
-    expect(pulseSwitch).toHaveProperty('disabled', true)
-    expect(screen.getByText(/sign in with an allowed wallet/i)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'New flag' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Edit pulse description' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Delete pulse' })).toBeNull()
-
-    // Typed values from the public map render as read-only chips
-    const chip = screen.getByRole('button', { name: 'Edit sentry-sample-rate value' })
-    expect(chip.textContent).toBe('1')
-    expect(chip).toHaveProperty('disabled', true)
   })
 
   it('shows the load error with a Retry button that refetches', async () => {

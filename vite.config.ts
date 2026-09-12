@@ -22,9 +22,13 @@ export default defineConfig(({ command, mode }) => {
       exclude: [...configDefaults.exclude, 'src/features/map/__tests__/**'],
       coverage: {
         provider: 'v8' as const,
-        // Scoped to the feature-flags code so the 80% threshold is enforceable
+        // Scoped to the tested code so the 80% threshold is enforceable
         // without failing on the untested legacy codebase
-        include: ['src/features/flags/**/*.{ts,tsx}', 'src/pages/FeatureFlagsPage.tsx'],
+        include: [
+          'src/features/access/**/*.{ts,tsx}',
+          'src/features/flags/**/*.{ts,tsx}',
+          'src/pages/FeatureFlagsPage.tsx',
+        ],
         thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 }
       }
     },

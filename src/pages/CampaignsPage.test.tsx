@@ -9,9 +9,7 @@ import {
   deleteCampaign,
   type Campaign,
 } from '../features/campaigns/api'
-import { useAuth } from '../contexts/auth'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
-import { isDevMode } from '../utils/devIdentity'
 
 vi.mock('../features/campaigns/api', () => ({
   fetchCampaigns: vi.fn(),
@@ -19,17 +17,13 @@ vi.mock('../features/campaigns/api', () => ({
   updateCampaign: vi.fn(),
   deleteCampaign: vi.fn(),
 }))
-vi.mock('../contexts/auth', () => ({ useAuth: vi.fn() }))
 vi.mock('../hooks/useAuthenticatedFetch', () => ({ useAuthenticatedFetch: vi.fn() }))
-vi.mock('../utils/devIdentity', () => ({ isDevMode: vi.fn() }))
 
 const mockFetchCampaigns = vi.mocked(fetchCampaigns)
 const mockCreateCampaign = vi.mocked(createCampaign)
 const mockUpdateCampaign = vi.mocked(updateCampaign)
 const mockDeleteCampaign = vi.mocked(deleteCampaign)
-const mockUseAuth = vi.mocked(useAuth)
 const mockUseAuthenticatedFetch = vi.mocked(useAuthenticatedFetch)
-const mockIsDevMode = vi.mocked(isDevMode)
 
 const authenticatedFetch = vi.fn()
 
@@ -38,17 +32,11 @@ const SUMMER: Campaign = {
   target: { type: 'genesis', position: '-9,-9' },
 }
 
-function signedIn(isSignedIn: boolean) {
-  mockUseAuth.mockReturnValue({ isSignedIn } as ReturnType<typeof useAuth>)
-}
-
 describe('CampaignsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseAuthenticatedFetch.mockReturnValue(authenticatedFetch)
-    mockIsDevMode.mockReturnValue(false)
     mockFetchCampaigns.mockResolvedValue([SUMMER])
-    signedIn(true)
   })
 
   it('lists a campaign with its target', async () => {
@@ -56,19 +44,6 @@ describe('CampaignsPage', () => {
 
     expect(await screen.findByText('summer2022')).toBeTruthy()
     expect(screen.getByText('-9,-9')).toBeTruthy()
-  })
-
-  // A signed-out visitor must not be able to change what installs see.
-  it('hides the editing affordances and does not call the backoffice when signed out', async () => {
-    signedIn(false)
-
-    render(<CampaignsPage />)
-
-    expect(
-      await screen.findByText('Sign in with an allowed wallet to manage campaigns.')
-    ).toBeTruthy()
-    expect(mockFetchCampaigns).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'New campaign' })).toBeNull()
   })
 
   it('validates the draft in the form before hitting the API', async () => {

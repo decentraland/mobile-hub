@@ -21,9 +21,28 @@ A web application for curating and managing Decentraland parcels and scene group
 ### Authentication
 - Decentraland SSO integration via `@dcl/single-sign-on-client`
 - Wallet connection using `decentraland-connect`
-- Navbar with Sign In/Sign Out and avatar display
+- Navbar with Sign Out and avatar display
 - `signedFetch` for authenticated API requests with cryptographic signatures
 - `useAuthenticatedFetch` hook for easy authenticated requests
+
+### Access control
+
+The whole admin is gated once, at the app shell, by `AccessGate`
+(`src/features/access/`). There are no per-write permission checks in the pages —
+if a page is mounted, the wallet is already allowed to use it.
+
+- **Signed out** — nothing renders but a full-screen sign-in card. No navbar, no
+  tabs, no panels, and no backoffice request is made.
+- **Signed in** — the gate asks the BFF `GET /backoffice/me` whether the wallet is
+  on the `ALLOWED_USERS` list. The endpoint answers `200` with `allowed: false`
+  rather than `403`, so a denial is distinguishable from a failed check.
+- **Not allowed** — an error modal names the rejected address; closing it signs the
+  session out and returns to the sign-in screen.
+- **Check failed** — an error card with Retry, so a BFF hiccup does not look like a
+  permission problem.
+- **Localhost** — the gate is bypassed entirely. Requests there are signed with the
+  hardcoded dev identity (`src/utils/devIdentity.ts`), which never goes through the
+  sign-in redirect, so add that address to the BFF's `ALLOWED_USERS`.
 
 ## Tech Stack
 
@@ -141,6 +160,9 @@ Scene groups are persisted to the [mobile-bff](../mobile-bff) backend.
 All backoffice endpoints require:
 1. Signed requests via `signedFetch`
 2. Wallet address in `ALLOWED_USERS` env var on the backend
+
+`GET /backoffice/me` reports both of those as `{ address, allowed }`; `AccessGate`
+calls it once after sign-in to decide whether to render the app at all.
 
 ### Frontend Implementation
 

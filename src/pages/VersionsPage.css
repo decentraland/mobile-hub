@@ -46,16 +46,6 @@
   text-decoration: underline;
 }
 
-.versions-warning {
-  margin-top: 12px;
-  padding: 10px 14px;
-  background: rgba(255, 193, 7, 0.1);
-  border: 1px solid rgba(255, 193, 7, 0.25);
-  border-radius: 8px;
-  color: #ffc107;
-  font-size: 13px;
-}
-
 .versions-loading {
   color: rgba(255, 255, 255, 0.5);
   text-align: center;

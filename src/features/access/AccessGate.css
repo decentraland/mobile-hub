@@ -1,0 +1,112 @@
+.access-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+}
+
+.access-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 40px 32px;
+  width: min(420px, calc(100vw - 48px));
+  text-align: center;
+}
+
+.access-card h1 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.access-card p {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+
+.access-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.access-error-detail {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-word;
+}
+
+.access-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.access-modal {
+  background: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 24px;
+  width: min(420px, calc(100vw - 48px));
+}
+
+.access-modal h3 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.access-modal p {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.access-modal-address {
+  display: block;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  color: #00d9ff;
+  font-size: 14px;
+  text-align: center;
+}
+
+.access-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.access-button-primary {
+  padding: 10px 20px;
+  background: #00d9ff;
+  border: 1px solid #00d9ff;
+  border-radius: 8px;
+  color: #0b0b0b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.access-button-secondary {
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  cursor: pointer;
+}

@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
-  fetchFeatureFlags,
   fetchFeatureFlagsDetailed,
   createFeatureFlag,
   updateFeatureFlag,
@@ -21,45 +20,6 @@ const TEST_FLAG: FeatureFlag = {
   updatedAt: '2026-07-23T00:00:00.000Z',
   updatedBy: null,
 }
-
-describe('fetchFeatureFlags', () => {
-  const fetchMock = vi.fn()
-
-  beforeEach(() => {
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('calls GET /feature-flags on the BFF and unwraps the typed flags map', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({
-        ok: true,
-        data: { flags: { pulse: false, 'dual-channel': true, 'sentry-sample-rate': 0.1, greeting: 'gm' } },
-      })
-    )
-
-    const flags = await fetchFeatureFlags()
-
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/feature-flags'))
-    expect(flags).toEqual({ pulse: false, 'dual-channel': true, 'sentry-sample-rate': 0.1, greeting: 'gm' })
-  })
-
-  it('throws the server error message when the envelope is ok: false', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ ok: false, error: 'Internal server error' }))
-
-    await expect(fetchFeatureFlags()).rejects.toThrow('Internal server error')
-  })
-
-  it('throws a generic message when the envelope has no error field', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ ok: false }))
-
-    await expect(fetchFeatureFlags()).rejects.toThrow('Failed to fetch feature flags')
-  })
-})
 
 describe('fetchFeatureFlagsDetailed', () => {
   it('calls the backoffice list endpoint with the authenticated fetch', async () => {
