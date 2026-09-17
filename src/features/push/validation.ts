@@ -151,12 +151,21 @@ export function permissionsFor(
   const isCreator = !!viewer && viewer.toLowerCase() === campaign.createdBy.toLowerCase()
   const pending = campaign.status === 'pending_approval'
 
+  // Why approval is unavailable, or null when it is available. Both reasons mirror a server
+  // gate, so the button explains itself instead of the click coming back 4xx.
+  let approveBlockedReason: string | null = null
+  if (pending && isCreator) {
+    approveBlockedReason = 'A campaign must be approved by someone else'
+  } else if (pending && campaign.audienceCount === 0) {
+    approveBlockedReason = 'This campaign reaches nobody — upload an audience first'
+  }
+
   return {
     canEdit: campaign.status === 'draft',
     canUploadAudience: campaign.status === 'draft' || pending,
     canSubmit: campaign.status === 'draft' && campaign.audienceCount > 0,
-    canApprove: pending && !isCreator,
-    approveBlockedReason: pending && isCreator ? 'A campaign must be approved by someone else' : null,
+    canApprove: pending && approveBlockedReason === null,
+    approveBlockedReason,
     canCancel: ['draft', 'pending_approval', 'scheduled', 'sending'].includes(campaign.status),
   }
 }

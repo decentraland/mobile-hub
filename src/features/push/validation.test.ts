@@ -91,7 +91,7 @@ describe('permissionsFor', () => {
     }
   }
 
-  it('will not let the creator approve their own campaign', () => {
+  it('will not offer approve when a server gate would refuse it', () => {
     const pending = campaign({ status: 'pending_approval', audienceCount: 10 })
 
     // Case-insensitive: the wallet comes back checksummed and the server stores lowercase,
@@ -99,6 +99,12 @@ describe('permissionsFor', () => {
     expect(permissionsFor(pending, CREATOR).canApprove).toBe(false)
     expect(permissionsFor(pending, CREATOR).approveBlockedReason).toBeTruthy()
     expect(permissionsFor(pending, OTHER).canApprove).toBe(true)
+
+    // Mirrors the server: approving a campaign with nothing queued strands it in `scheduled`,
+    // so the button has to be dead here rather than sending a click that comes back 409.
+    const empty = { ...pending, audienceCount: 0 }
+    expect(permissionsFor(empty, OTHER).canApprove).toBe(false)
+    expect(permissionsFor(empty, OTHER).approveBlockedReason).toMatch(/reaches nobody/)
   })
 
   it('will not offer submit before there is anyone to send to', () => {
