@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import {
   emptyDraft,
   draftToInput,
+  draftFromCampaign,
   draftWarnings,
   validateDraft,
   permissionsFor,
@@ -65,6 +66,55 @@ describe('draftToInput', () => {
     // Blank means "no image", not an empty string the server would have to interpret.
     expect(input.imageUrl).toBeNull()
     expect(input.scheduledAt).toBeNull()
+  })
+})
+
+describe('scheduledAt round trip', () => {
+  // The bug only shows outside UTC, which is why a default suite never caught it: the form
+  // input holds a zone-less wall clock the browser reads as local, and the API speaks UTC.
+  const realTz = process.env.TZ
+  beforeAll(() => {
+    process.env.TZ = 'America/Argentina/Buenos_Aires'
+  })
+  afterAll(() => {
+    process.env.TZ = realTz
+  })
+
+  function scheduled(iso: string): PushCampaign {
+    return {
+      id: 'id',
+      campaignKey: 'spring-event',
+      title: 'Come back',
+      body: 'Something',
+      deepLink: 'decentraland://open',
+      imageUrl: null,
+      category: 'liveops',
+      status: 'scheduled',
+      ttlSeconds: 86400,
+      scheduledAt: iso,
+      audienceCount: 10,
+      createdBy: '0xabc',
+      approvedBy: null,
+      approvedAt: null,
+      createdAt: '2026-09-01T00:00:00.000Z',
+      startedAt: null,
+      finishedAt: null,
+    } as PushCampaign
+  }
+
+  it('survives an edit without moving the send time', () => {
+    const iso = '2026-10-01T12:00:00.000Z'
+    const shown = draftFromCampaign(scheduled(iso)).scheduledAt
+
+    // Not the naive slice: that would show 12:00 to an operator three hours behind it.
+    expect(shown).not.toBe(iso.slice(0, 16))
+    expect(shown).toBe('2026-10-01T09:00')
+
+    // And editing anything else must leave the time exactly where it was. Slicing made every
+    // save shift it by the offset again, so two edits from Buenos Aires ran it 6h late.
+    const resaved = draftToInput(draft({ scheduledAt: shown })).scheduledAt
+    expect(resaved).toBe(iso)
+    expect(draftToInput(draft({ scheduledAt: draftFromCampaign(scheduled(resaved!)).scheduledAt })).scheduledAt).toBe(iso)
   })
 })
 

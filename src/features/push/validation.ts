@@ -38,6 +38,25 @@ export function emptyDraft(): PushFormDraft {
   }
 }
 
+/**
+ * `datetime-local` holds a wall clock with no zone, and the browser reads it as the operator's
+ * own. The API speaks UTC, so the two need converting rather than slicing.
+ *
+ * Slicing the ISO string put a UTC wall clock into an input read as local: the operator saw a
+ * time wrong by their offset, and saving parsed it back as local, moving the campaign by that
+ * offset again on every edit. It only looked right in a UTC browser.
+ */
+function toLocalInputValue(iso: string): string {
+  const instant = new Date(iso)
+  return new Date(instant.getTime() - instant.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
+
+function fromLocalInputValue(value: string): string {
+  // Correct precisely because the input is genuinely local: `new Date` parses a zone-less
+  // string in local time, so this is the inverse of the above.
+  return new Date(value).toISOString()
+}
+
 export function draftFromCampaign(campaign: PushCampaign): PushFormDraft {
   return {
     campaignKey: campaign.campaignKey,
@@ -46,7 +65,7 @@ export function draftFromCampaign(campaign: PushCampaign): PushFormDraft {
     deepLink: campaign.deepLink,
     imageUrl: campaign.imageUrl ?? '',
     ttlHours: String(campaign.ttlSeconds / 3600),
-    scheduledAt: campaign.scheduledAt ? campaign.scheduledAt.slice(0, 16) : '',
+    scheduledAt: campaign.scheduledAt ? toLocalInputValue(campaign.scheduledAt) : '',
   }
 }
 
@@ -116,7 +135,7 @@ export function draftToInput(draft: PushFormDraft): PushCampaignInput {
     deepLink: draft.deepLink.trim(),
     imageUrl: draft.imageUrl.trim() || null,
     ttlSeconds: Math.round(Number(draft.ttlHours) * 3600),
-    scheduledAt: draft.scheduledAt ? new Date(draft.scheduledAt).toISOString() : null,
+    scheduledAt: draft.scheduledAt ? fromLocalInputValue(draft.scheduledAt) : null,
   }
 }
 

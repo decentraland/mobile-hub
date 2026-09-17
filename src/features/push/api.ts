@@ -87,7 +87,19 @@ async function unwrapWithWarnings<T>(
   response: Response,
   fallbackError: string
 ): Promise<{ data: T; warnings: string[] }> {
-  const json: ApiResponse<T> = await response.json()
+  // Every handler answers `{ ok, data | error }`, so the useful message is in the body — but
+  // an ingress 500, a proxy 502 or an auth redirect answers with HTML, and parsing that first
+  // buried the real problem under `Unexpected token '<'`.
+  let json: ApiResponse<T>
+  try {
+    json = await response.json()
+  } catch {
+    throw new Error(
+      response.ok
+        ? fallbackError
+        : `${response.status} ${response.statusText}`.trim() || fallbackError
+    )
+  }
 
   if (!json.ok || json.data === undefined) {
     throw new Error(json.error || fallbackError)
