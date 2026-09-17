@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 import './AppTabs.css'
 
-export type AppView = 'map' | 'worlds' | 'curation' | 'versions' | 'flags' | 'campaigns'
+export type AppView = 'map' | 'worlds' | 'curation' | 'versions' | 'flags' | 'campaigns' | 'push'
 
 interface AppTabsProps {
   activeView: AppView
@@ -46,6 +46,12 @@ export const AppTabs: FC<AppTabsProps> = ({ activeView, onViewChange }) => {
         onClick={() => onViewChange('campaigns')}
       >
         Campaigns
+      </button>
+      <button
+        className={`app-tab ${activeView === 'push' ? 'app-tab-active' : ''}`}
+        onClick={() => onViewChange('push')}
+      >
+        Push
       </button>
     </div>
   )

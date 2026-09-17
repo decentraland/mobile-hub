@@ -1,0 +1,334 @@
+.push-page {
+  position: fixed;
+  inset: 0;
+  background: #1a1a1a;
+  padding-top: 80px;
+  overflow-y: auto;
+}
+
+.push-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.push-header {
+  margin-bottom: 24px;
+}
+
+.push-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.push-header h1 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.push-header p {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.push-note {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.45) !important;
+  font-size: 13px;
+}
+
+.push-header code,
+.push-row-key,
+.push-detail code,
+.push-note code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.push-loading,
+.push-empty {
+  color: rgba(255, 255, 255, 0.5);
+  padding: 32px;
+  text-align: center;
+}
+
+.push-error {
+  background: rgba(255, 77, 77, 0.12);
+  border: 1px solid rgba(255, 77, 77, 0.3);
+  color: #ff9a9a;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.push-warning {
+  background: rgba(244, 180, 0, 0.1);
+  border: 1px solid rgba(244, 180, 0, 0.3);
+  color: #f4c95d;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+/* Form and preview side by side: the point of the preview is to be visible while typing. */
+.push-form-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: start;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 760px) {
+  .push-form-section {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.push-form h2 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.push-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.push-field > span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+.push-field input,
+.push-field textarea {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.push-field small {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.push-field-error {
+  color: #ff9a9a;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.push-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.push-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.push-button-primary,
+.push-button-secondary,
+.push-button-danger {
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.push-button-primary {
+  background: #ff2d55;
+  color: #fff;
+}
+
+.push-button-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.push-button-danger {
+  background: rgba(255, 77, 77, 0.15);
+  border-color: rgba(255, 77, 77, 0.35);
+  color: #ff9a9a;
+}
+
+.push-button-primary:disabled,
+.push-button-secondary:disabled,
+.push-button-danger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* The file input is hidden behind its label so it looks like the buttons next to it. */
+.push-file-button {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+}
+
+.push-file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.push-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.push-row {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.push-row-selected {
+  border-color: rgba(255, 45, 85, 0.4);
+}
+
+.push-row-main {
+  cursor: pointer;
+  min-width: 0;
+}
+
+.push-row-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.push-row-title {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+}
+
+.push-row-meta {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.push-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.push-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.push-status-draft { color: rgba(255, 255, 255, 0.5); }
+.push-status-pending_approval { color: #f4c95d; }
+.push-status-scheduled { color: #6ec1ff; }
+.push-status-sending { color: #6ec1ff; }
+.push-status-sent { color: #7ddba1; }
+.push-status-cancelled { color: rgba(255, 255, 255, 0.4); }
+.push-status-failed { color: #ff9a9a; }
+
+.push-detail {
+  grid-column: 1 / -1;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.push-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.push-detail-grid span {
+  display: block;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.push-detail-grid code {
+  word-break: break-all;
+}
+
+.push-report {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.push-report-ok { color: #7ddba1; }
+.push-report-bad { color: #ff9a9a; }
+
+.push-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
+}
+
+.push-stats > div {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.push-stats strong {
+  display: block;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 20px;
+}
+
+.push-stats span {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+}
