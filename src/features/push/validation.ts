@@ -85,6 +85,8 @@ export function validateDraft(draft: PushFormDraft, options: { isNew: boolean })
         reserved === 'c'
           ? "'c' is the install attribution token and must not be reused for push"
           : `'${reserved}' is added automatically when sending`
+    } else {
+      errors.deepLink = deepLinkRouteError(deepLink) ?? undefined
     }
   }
 
@@ -137,6 +139,33 @@ export function draftWarnings(draft: PushFormDraft): string[] {
  * creator, which is the whole point of the step, and the UI has to say so rather than offer a
  * button that will come back 403.
  */
+/**
+ * Mirrors the server's allow-list of campaign destinations. A block-list would not hold: the
+ * client parses around twenty deep-link params, and `dclenv` alone switches environment and
+ * signs the user out — on every device in the audience, since nobody has to tap a campaign
+ * link for it to arrive. The server revalidates; this just says so before the round trip.
+ */
+const ALLOWED_DEEP_LINK_ROUTES: Record<string, string[]> = {
+  open: ['position', 'location', 'realm'],
+  events: ['id'],
+  places: ['id'],
+}
+
+export function deepLinkRouteError(deepLink: string): string | null {
+  let url: URL
+  try {
+    url = new URL(deepLink)
+  } catch {
+    return 'Not a valid link'
+  }
+  const allowed = ALLOWED_DEEP_LINK_ROUTES[url.host]
+  if (!allowed) {
+    return `Must point at one of: ${Object.keys(ALLOWED_DEEP_LINK_ROUTES).join(', ')}`
+  }
+  const rejected = [...url.searchParams.keys()].find(param => !allowed.includes(param))
+  return rejected ? `'${rejected}' is not allowed here; '${url.host}' accepts: ${allowed.join(', ')}` : null
+}
+
 export function permissionsFor(
   campaign: PushCampaign,
   viewer: string | undefined

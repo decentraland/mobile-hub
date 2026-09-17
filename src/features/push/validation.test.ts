@@ -34,6 +34,17 @@ describe('validateDraft', () => {
     expect(errors.deepLink).toContain('install attribution')
   })
 
+  it('only lets a campaign link say "go here"', () => {
+    // Mirrors the server. `dclenv` is the sharp one: the client applies it and signs the user
+    // out, and a campaign link reaches every device without anyone having to tap it.
+    const linkError = (deepLink: string) =>
+      validateDraft(draft({ deepLink }), { isNew: true }).deepLink
+    expect(linkError('decentraland://open?dclenv=zone')).toBeTruthy()
+    expect(linkError('decentraland://settings')).toBeTruthy()
+    expect(linkError('decentraland://events?id=3f8c')).toBeUndefined()
+    expect(linkError('decentraland://open?position=0,0')).toBeUndefined()
+  })
+
   it('refuses a TTL past what FCM will actually retain', () => {
     expect(validateDraft(draft({ ttlHours: '673' }), { isNew: true }).ttlHours).toBeTruthy()
     expect(validateDraft(draft({ ttlHours: '672' }), { isNew: true }).ttlHours).toBeUndefined()
