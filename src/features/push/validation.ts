@@ -105,7 +105,12 @@ export function validateDraft(draft: PushFormDraft, options: { isNew: boolean })
           ? "'c' is the install attribution token and must not be reused for push"
           : `'${reserved}' is added automatically when sending`
     } else {
-      errors.deepLink = deepLinkRouteError(deepLink) ?? undefined
+      // Assigned only when there is one: `errors.deepLink = undefined` still creates the key,
+      // and callers ask Object.keys() whether the form is valid.
+      const routeError = deepLinkRouteError(deepLink)
+      if (routeError) {
+        errors.deepLink = routeError
+      }
     }
   }
 
