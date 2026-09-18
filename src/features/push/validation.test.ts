@@ -44,6 +44,11 @@ describe('validateDraft', () => {
     expect(linkError('decentraland://settings')).toBeTruthy()
     expect(linkError('decentraland://events?id=3f8c')).toBeUndefined()
     expect(linkError('decentraland://open?position=0,0')).toBeUndefined()
+
+    // Asserted on the KEYS, not the value: setting `errors.deepLink = undefined` leaves the key
+    // in place, every caller counts keys to decide whether the form is valid, and nothing
+    // renders for an undefined message — so the Save button dies with no explanation on screen.
+    expect(Object.keys(validateDraft(draft(), { isNew: true }))).toEqual([])
   })
 
   it('refuses a TTL past what FCM will actually retain', () => {
