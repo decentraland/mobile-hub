@@ -64,8 +64,22 @@ function socKey(soc: string): string {
   return soc.trim().toUpperCase().replace(/ /g, '')
 }
 
-function isAuthError(err: unknown): boolean {
-  return err instanceof ApiError && (err.status === 401 || err.status === 403)
+// 401 means the signed-fetch identity is missing or its TTL expired -- recoverable by signing in
+// again. 403 means the signature is fine but the address isn't in ALLOWED_USERS -- only an admin
+// can fix that. They read very differently to an operator, so keep them distinct everywhere an
+// error surfaces, not just on the initial list load.
+function classifyAuthError(err: unknown): 'expired' | 'not-allowed' | null {
+  if (!(err instanceof ApiError)) return null
+  if (err.status === 401) return 'expired'
+  if (err.status === 403) return 'not-allowed'
+  return null
+}
+
+function friendlyErrorMessage(err: unknown, fallback: string): string {
+  const authIssue = classifyAuthError(err)
+  if (authIssue === 'expired') return 'Your session expired — sign in again to continue.'
+  if (authIssue === 'not-allowed') return "Your wallet isn't in the allowed list for device support edits."
+  return err instanceof Error ? err.message : fallback
 }
 
 function parseBulkInput(text: string): { entries: BulkUpsertEntry[]; errors: string[] } {
@@ -104,35 +118,44 @@ function parseBulkInput(text: string): { entries: BulkUpsertEntry[]; errors: str
 
 export const DeviceSupportPage: FC = () => {
   const authenticatedFetch = useAuthenticatedFetch()
-  const { isSignedIn } = useAuth()
+  const { isSignedIn, signIn } = useAuth()
   const canEdit = isSignedIn || isDevMode()
 
   const [entries, setEntries] = useState<DeviceSupportEntry[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [notAllowed, setNotAllowed] = useState(false)
+  const [authIssue, setAuthIssue] = useState<'expired' | 'not-allowed' | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>({ status: 'idle' })
   const [showAddEntry, setShowAddEntry] = useState(false)
   const [showBulkImport, setShowBulkImport] = useState(false)
+  // Guards loadEntries the same way DeviceLookup guards its own request: Retry, and every
+  // mutation's post-save refresh, all call it, and a slower earlier call landing after a faster
+  // later one would otherwise show stale data.
+  const loadRequestIdRef = useRef(0)
 
   const loadEntries = useCallback(async () => {
     if (!canEdit) {
       setIsLoading(false)
       return
     }
+    const requestId = ++loadRequestIdRef.current
     setIsLoading(true)
     setLoadError(null)
-    setNotAllowed(false)
+    setAuthIssue(null)
     try {
-      setEntries(sortBySoc(await fetchDeviceSupportList(authenticatedFetch)))
+      const fetched = sortBySoc(await fetchDeviceSupportList(authenticatedFetch))
+      if (loadRequestIdRef.current !== requestId) return
+      setEntries(fetched)
     } catch (err) {
-      if (isAuthError(err)) {
-        setNotAllowed(true)
+      if (loadRequestIdRef.current !== requestId) return
+      const issue = classifyAuthError(err)
+      if (issue) {
+        setAuthIssue(issue)
       } else {
         setLoadError(err instanceof Error ? err.message : 'Failed to load device support entries')
       }
     } finally {
-      setIsLoading(false)
+      if (loadRequestIdRef.current === requestId) setIsLoading(false)
     }
   }, [canEdit, authenticatedFetch])
 
@@ -146,7 +169,8 @@ export const DeviceSupportPage: FC = () => {
   }
 
   const handleRequestOverwrite = (existing: DeviceSupportEntry, soc: string, decision: DeviceDecision) => {
-    setShowAddEntry(false)
+    // Leave the add form open (just covered by the modal) so cancelling the confirm doesn't lose
+    // what was typed -- it only closes once handleConfirmAction's upsert branch actually succeeds.
     setConfirm({
       status: 'confirming',
       action: { kind: 'upsert', soc, from: existing.decision, next: decision },
@@ -188,6 +212,9 @@ export const DeviceSupportPage: FC = () => {
     try {
       if (action.kind === 'upsert') {
         await upsertDeviceSupport(authenticatedFetch, action.soc, action.next)
+        // A no-op when this upsert came from the row chip rather than an add-entry overwrite --
+        // the form is already closed in that case.
+        setShowAddEntry(false)
         await loadEntries()
       } else if (action.kind === 'bulk-upsert') {
         await bulkUpsertDeviceSupport(authenticatedFetch, action.entries)
@@ -202,7 +229,7 @@ export const DeviceSupportPage: FC = () => {
       setConfirm({
         status: 'error',
         action,
-        message: err instanceof Error ? err.message : 'Failed to save',
+        message: friendlyErrorMessage(err, 'Failed to save'),
       })
     }
   }
@@ -232,14 +259,23 @@ export const DeviceSupportPage: FC = () => {
           </div>
         )}
 
-        {canEdit && notAllowed && (
+        {canEdit && authIssue === 'not-allowed' && (
           <div className="devices-warning">
             Your wallet isn't in the allowed list for device support edits — ask an admin to add
             it.
           </div>
         )}
 
-        {canEdit && !notAllowed && (
+        {canEdit && authIssue === 'expired' && (
+          <div className="devices-warning">
+            Your session expired.{' '}
+            <button className="devices-link-button" onClick={signIn}>
+              Sign in again
+            </button>
+          </div>
+        )}
+
+        {canEdit && !authIssue && (
           <>
             <div className="devices-header-row">
               <h2>Overrides</h2>
@@ -255,6 +291,8 @@ export const DeviceSupportPage: FC = () => {
                 </button>
                 <button
                   className="devices-button-primary"
+                  disabled={entries === null}
+                  title={entries === null ? 'Load the list before adding an entry' : undefined}
                   onClick={() => {
                     setShowAddEntry(v => !v)
                     setShowBulkImport(false)
@@ -432,9 +470,16 @@ const AddEntryForm: FC<{
       return
     }
 
+    // Without a loaded list there's no way to tell an overwrite from a fresh entry -- refuse
+    // rather than risk silently clobbering a live override the operator can't currently see.
+    if (entries === null) {
+      setError("Can't verify whether this SoC already exists — reload the list and try again")
+      return
+    }
+
     // An already-listed SoC is a decision change on a live override, not a fresh entry -- route
     // it through the same confirm-with-diff flow as toggling a row, instead of overwriting silently.
-    const existing = entries?.find(e => socKey(e.soc) === socKey(trimmed))
+    const existing = entries.find(e => socKey(e.soc) === socKey(trimmed))
     if (existing) {
       onRequestOverwrite(existing, trimmed, decision)
       return
@@ -446,7 +491,7 @@ const AddEntryForm: FC<{
       await upsertDeviceSupport(authenticatedFetch, trimmed, decision)
       onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save device support entry')
+      setError(friendlyErrorMessage(err, 'Failed to save device support entry'))
       setSaving(false)
     }
   }
@@ -578,11 +623,15 @@ const ConfirmDialog: FC<{
         {action.kind === 'upsert' && (
           <div className="devices-diff">
             <code>{action.soc}</code>
-            <span className="devices-diff-value">
-              <span className="devices-diff-from">{decisionLabel(action.from)}</span>
-              <span className="devices-diff-arrow">→</span>
-              <span className="devices-diff-to">{decisionLabel(action.next)}</span>
-            </span>
+            {action.from === action.next ? (
+              <span className="devices-diff-value">No decision change — refreshes who/when this was last confirmed.</span>
+            ) : (
+              <span className="devices-diff-value">
+                <span className="devices-diff-from">{decisionLabel(action.from)}</span>
+                <span className="devices-diff-arrow">→</span>
+                <span className="devices-diff-to">{decisionLabel(action.next)}</span>
+              </span>
+            )}
           </div>
         )}
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DeviceSupportPage } from './DeviceSupportPage'
 import {
@@ -110,6 +110,21 @@ describe('DeviceSupportPage', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
+  it('shows a session-expired message with a working sign-in button for a 401, distinct from not-allowed', async () => {
+    const signIn = vi.fn()
+    mockUseAuth.mockReturnValue({ isSignedIn: true, signIn } as unknown as ReturnType<typeof useAuth>)
+    mockFetchList.mockRejectedValueOnce(new ApiError('Unauthorized', 401))
+
+    render(<DeviceSupportPage />)
+
+    await screen.findByText(/session expired/i)
+
+    expect(screen.queryByText(/wallet isn't in the allowed list/i)).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in again' }))
+    expect(signIn).toHaveBeenCalled()
+  })
+
   it('shows the load error with a Retry button that refetches', async () => {
     mockFetchList.mockRejectedValueOnce(new Error('network down'))
 
@@ -158,19 +173,31 @@ describe('DeviceSupportPage', () => {
     )
   })
 
-  it('keeps the dialog open and shows the error message when the save fails', async () => {
-    mockUpsert.mockRejectedValue(new Error('Forbidden: User not in allowed list'))
+  it('keeps the dialog open and shows the raw error message for a non-auth save failure', async () => {
+    mockUpsert.mockRejectedValue(new Error('Internal server error'))
 
     render(<DeviceSupportPage />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Change decision for EXYNOS 7420' }))
     await userEvent.click(screen.getByRole('button', { name: 'Yes, save' }))
 
-    await screen.findByText('Forbidden: User not in allowed list')
+    await screen.findByText('Internal server error')
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Change decision for EXYNOS 7420' }).textContent).toBe(
       'End of support'
     )
+  })
+
+  it('shows the friendly not-allowed message in the confirm dialog too, not just on load', async () => {
+    mockUpsert.mockRejectedValue(new ApiError('Forbidden: User not in allowed list', 403))
+
+    render(<DeviceSupportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Change decision for EXYNOS 7420' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, save' }))
+
+    await screen.findByText(/wallet isn't in the allowed list/i)
+    expect(screen.queryByText('Forbidden: User not in allowed list')).toBeNull()
   })
 
   it('adds a new entry from the form and reloads the list', async () => {
@@ -230,6 +257,46 @@ describe('DeviceSupportPage', () => {
     expect(mockUpsert).toHaveBeenCalledWith(authenticatedFetch, 'exynos7420', 'below-minspec')
   })
 
+  it('keeps the add-entry form open with its typed value when the overwrite confirm is cancelled', async () => {
+    render(<DeviceSupportPage />)
+    await screen.findByText('EXYNOS 7420')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add entry' }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'New entry SoC' }), 'exynos7420')
+    await userEvent.click(screen.getByRole('button', { name: 'Save entry' }))
+
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mockUpsert).not.toHaveBeenCalled()
+    expect((screen.getByRole('textbox', { name: 'New entry SoC' }) as HTMLInputElement).value).toBe(
+      'exynos7420'
+    )
+  })
+
+  it('shows a "no decision change" message when an overwrite picks the same decision', async () => {
+    render(<DeviceSupportPage />)
+    await screen.findByText('EXYNOS 7420')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add entry' }))
+    // Decision select defaults to "exclude", matching the seeded EXYNOS 7420 exactly.
+    await userEvent.type(screen.getByRole('textbox', { name: 'New entry SoC' }), 'EXYNOS 7420')
+    await userEvent.click(screen.getByRole('button', { name: 'Save entry' }))
+
+    expect(screen.getByRole('dialog').textContent).toContain('No decision change')
+  })
+
+  it('disables Add entry until the list has loaded, so the overwrite guard can never be bypassed', async () => {
+    mockFetchList.mockRejectedValue(new Error('network down'))
+
+    render(<DeviceSupportPage />)
+
+    await screen.findByText('network down')
+
+    expect(screen.getByRole('button', { name: 'Add entry' })).toHaveProperty('disabled', true)
+  })
+
   it('rejects an empty SoC in the add-entry form client-side', async () => {
     render(<DeviceSupportPage />)
 
@@ -250,6 +317,19 @@ describe('DeviceSupportPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save entry' }))
 
     await screen.findByText("'soc' must be at most 64 characters")
+  })
+
+  it('shows a friendly not-allowed message in the add-entry form too', async () => {
+    mockUpsert.mockRejectedValue(new ApiError('Forbidden: User not in allowed list', 403))
+
+    render(<DeviceSupportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add entry' }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'New entry SoC' }), 'SM8750')
+    await userEvent.click(screen.getByRole('button', { name: 'Save entry' }))
+
+    await screen.findByText(/wallet isn't in the allowed list/i)
+    expect(screen.queryByText('Forbidden: User not in allowed list')).toBeNull()
   })
 
   it('deletes an entry after confirmation and reloads the list', async () => {
@@ -370,6 +450,36 @@ describe('DeviceSupportPage', () => {
     expect(screen.getByText(/Line 2: decision must be/)).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(mockBulkUpsert).not.toHaveBeenCalled()
+  })
+
+  it('ignores an earlier loadEntries response landing after a mutation-triggered reload', async () => {
+    let resolveInitial: (value: DeviceSupportEntry[]) => void = () => {}
+    const initialPromise = new Promise<DeviceSupportEntry[]>(resolve => {
+      resolveInitial = resolve
+    })
+    // The initial mount load is left pending; Add entry is disabled while entries is null, but
+    // Bulk import isn't, so it's the only way to fire a second loadEntries before the first settles.
+    mockFetchList.mockReturnValueOnce(initialPromise).mockResolvedValueOnce([SM6115])
+    mockBulkUpsert.mockResolvedValue(1)
+
+    render(<DeviceSupportPage />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Bulk import' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Bulk import entries' }), {
+      target: { value: 'SM6115,below-minspec' },
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Preview import' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, import' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.getByText('SM6115')).toBeTruthy()
+    expect(screen.queryByText('EXYNOS 7420')).toBeNull()
+
+    // The stale initial request finally resolves -- it must not resurrect the old list.
+    resolveInitial([EXYNOS, SM6115])
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(screen.queryByText('EXYNOS 7420')).toBeNull()
   })
 
   it('looks up a device via the public endpoint and shows the decision', async () => {
