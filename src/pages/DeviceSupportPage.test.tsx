@@ -3,24 +3,30 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DeviceSupportPage } from './DeviceSupportPage'
 import {
+  ApiError,
   fetchDeviceDecision,
   fetchDeviceSupportList,
   upsertDeviceSupport,
   bulkUpsertDeviceSupport,
   deleteDeviceSupport,
   type DeviceSupportEntry,
+  type PublicDeviceDecision,
 } from '../features/devices/api'
 import { useAuth } from '../contexts/auth'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
 import { isDevMode } from '../utils/devIdentity'
 
-vi.mock('../features/devices/api', () => ({
-  fetchDeviceDecision: vi.fn(),
-  fetchDeviceSupportList: vi.fn(),
-  upsertDeviceSupport: vi.fn(),
-  bulkUpsertDeviceSupport: vi.fn(),
-  deleteDeviceSupport: vi.fn(),
-}))
+vi.mock('../features/devices/api', async () => {
+  const actual = await vi.importActual<typeof import('../features/devices/api')>('../features/devices/api')
+  return {
+    ...actual,
+    fetchDeviceDecision: vi.fn(),
+    fetchDeviceSupportList: vi.fn(),
+    upsertDeviceSupport: vi.fn(),
+    bulkUpsertDeviceSupport: vi.fn(),
+    deleteDeviceSupport: vi.fn(),
+  }
+})
 vi.mock('../contexts/auth', () => ({ useAuth: vi.fn() }))
 vi.mock('../hooks/useAuthenticatedFetch', () => ({ useAuthenticatedFetch: vi.fn() }))
 vi.mock('../utils/devIdentity', () => ({ isDevMode: vi.fn() }))
@@ -59,7 +65,7 @@ describe('DeviceSupportPage', () => {
     mockFetchList.mockResolvedValue([EXYNOS, SM6115])
   })
 
-  it('loads entries for editors and renders soc and decision', async () => {
+  it('loads entries for editors and renders soc, decision and the audit trail', async () => {
     render(<DeviceSupportPage />)
 
     await screen.findByText('EXYNOS 7420')
@@ -71,7 +77,11 @@ describe('DeviceSupportPage', () => {
     expect(screen.getByRole('button', { name: 'Change decision for SM6115' }).textContent).toBe(
       'Below minspec'
     )
-    expect(screen.getByText(/Updated by/)).toBeTruthy()
+
+    // Every row shows when it was last updated; only the one with an editor also names them.
+    const auditLines = screen.getAllByText(/Updated/).map(el => el.textContent)
+    expect(auditLines.some(t => t?.includes('by'))).toBe(true)
+    expect(auditLines.some(t => !t?.includes('by'))).toBe(true)
   })
 
   it('shows a sign-in warning and skips the list fetch for read-only viewers', async () => {
@@ -86,6 +96,18 @@ describe('DeviceSupportPage', () => {
     expect(screen.queryByRole('button', { name: 'Add entry' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Bulk import' })).toBeNull()
     expect(screen.getByRole('textbox', { name: 'SoC to look up' })).toBeTruthy()
+  })
+
+  it('shows a friendly not-allowed warning instead of a raw Forbidden error', async () => {
+    mockFetchList.mockRejectedValueOnce(new ApiError('Forbidden: User not in allowed list', 403))
+
+    render(<DeviceSupportPage />)
+
+    await screen.findByText(/wallet isn't in the allowed list/i)
+
+    expect(screen.queryByText('Forbidden: User not in allowed list')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add entry' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
   it('shows the load error with a Retry button that refetches', async () => {
@@ -117,8 +139,11 @@ describe('DeviceSupportPage', () => {
     expect(mockUpsert).not.toHaveBeenCalled()
   })
 
-  it('saves a decision change on confirm and re-renders from the returned entry', async () => {
+  it('saves a decision change on confirm and reloads the list from the server', async () => {
     mockUpsert.mockResolvedValue({ ...EXYNOS, decision: 'below-minspec' })
+    mockFetchList
+      .mockResolvedValueOnce([EXYNOS, SM6115])
+      .mockResolvedValueOnce([{ ...EXYNOS, decision: 'below-minspec' }, SM6115])
 
     render(<DeviceSupportPage />)
 
@@ -127,6 +152,7 @@ describe('DeviceSupportPage', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(mockUpsert).toHaveBeenCalledWith(authenticatedFetch, 'EXYNOS 7420', 'below-minspec')
+    expect(mockFetchList).toHaveBeenCalledTimes(2)
     expect(screen.getByRole('button', { name: 'Change decision for EXYNOS 7420' }).textContent).toBe(
       'Below minspec'
     )
@@ -147,7 +173,7 @@ describe('DeviceSupportPage', () => {
     )
   })
 
-  it('adds a new entry from the form', async () => {
+  it('adds a new entry from the form and reloads the list', async () => {
     const created: DeviceSupportEntry = {
       soc: 'SM8750',
       decision: 'below-minspec',
@@ -155,6 +181,9 @@ describe('DeviceSupportPage', () => {
       updatedBy: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
     }
     mockUpsert.mockResolvedValue(created)
+    mockFetchList
+      .mockResolvedValueOnce([EXYNOS, SM6115])
+      .mockResolvedValueOnce([EXYNOS, SM6115, created])
 
     render(<DeviceSupportPage />)
 
@@ -168,6 +197,37 @@ describe('DeviceSupportPage', () => {
 
     await screen.findByRole('button', { name: 'Change decision for SM8750' })
     expect(mockUpsert).toHaveBeenCalledWith(authenticatedFetch, 'SM8750', 'below-minspec')
+    expect(mockFetchList).toHaveBeenCalledTimes(2)
+  })
+
+  it('routes an add-entry overwrite of an already-listed SoC through the confirm dialog', async () => {
+    mockUpsert.mockResolvedValue({ ...EXYNOS, decision: 'below-minspec' })
+    mockFetchList
+      .mockResolvedValueOnce([EXYNOS, SM6115])
+      .mockResolvedValueOnce([{ ...EXYNOS, decision: 'below-minspec' }, SM6115])
+
+    render(<DeviceSupportPage />)
+    await screen.findByText('EXYNOS 7420')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add entry' }))
+    // Same chip as the seeded "EXYNOS 7420", just typed without the space and lowercase.
+    await userEvent.type(screen.getByRole('textbox', { name: 'New entry SoC' }), 'exynos7420')
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'New entry decision' }),
+      'below-minspec'
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Save entry' }))
+
+    expect(mockUpsert).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('exynos7420')
+    expect(dialog.textContent).toContain('End of support')
+    expect(dialog.textContent).toContain('Below minspec')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, save' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(mockUpsert).toHaveBeenCalledWith(authenticatedFetch, 'exynos7420', 'below-minspec')
   })
 
   it('rejects an empty SoC in the add-entry form client-side', async () => {
@@ -192,8 +252,9 @@ describe('DeviceSupportPage', () => {
     await screen.findByText("'soc' must be at most 64 characters")
   })
 
-  it('deletes an entry after confirmation', async () => {
+  it('deletes an entry after confirmation and reloads the list', async () => {
     mockDelete.mockResolvedValue(undefined)
+    mockFetchList.mockResolvedValueOnce([EXYNOS, SM6115]).mockResolvedValueOnce([SM6115])
 
     render(<DeviceSupportPage />)
 
@@ -208,6 +269,7 @@ describe('DeviceSupportPage', () => {
       expect(screen.queryByRole('button', { name: 'Change decision for EXYNOS 7420' })).toBeNull()
     )
     expect(mockDelete).toHaveBeenCalledWith(authenticatedFetch, 'EXYNOS 7420')
+    expect(mockFetchList).toHaveBeenCalledTimes(2)
     expect(screen.getByRole('button', { name: 'Change decision for SM6115' })).toBeTruthy()
   })
 
@@ -226,6 +288,7 @@ describe('DeviceSupportPage', () => {
     const dialog = screen.getByRole('dialog')
     expect(dialog.textContent).toContain('2 entries')
     expect(dialog.textContent).toContain('SM4350')
+    expect(dialog.textContent).toContain('keep their current value')
 
     await userEvent.click(screen.getByRole('button', { name: 'Yes, import' }))
 
@@ -237,17 +300,74 @@ describe('DeviceSupportPage', () => {
     expect(mockFetchList).toHaveBeenCalledTimes(2)
   })
 
-  it('shows a parse error for a malformed bulk-import line without opening the confirm dialog', async () => {
+  it('shows the new/changed/unchanged breakdown in the bulk-import preview', async () => {
     render(<DeviceSupportPage />)
     await screen.findByText('EXYNOS 7420')
 
     await userEvent.click(screen.getByRole('button', { name: 'Bulk import' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Bulk import entries' }), {
-      target: { value: 'SM4350,not-a-real-decision' },
+      // SM4350 is new, EXYNOS 7420 changes decision, SM6115 stays the same.
+      target: { value: 'SM4350,exclude\nEXYNOS 7420,below-minspec\nSM6115,below-minspec' },
     })
     await userEvent.click(screen.getByRole('button', { name: 'Preview import' }))
 
-    await screen.findByText(/decision must be "exclude" or "below-minspec"/)
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('3 entries')
+    expect(dialog.textContent).toContain('1 new')
+    expect(dialog.textContent).toContain('1 changed')
+    expect(dialog.textContent).toContain('1 unchanged')
+  })
+
+  it('dedupes repeated SoCs in a bulk paste, keeping the last decision', async () => {
+    mockBulkUpsert.mockResolvedValue(1)
+
+    render(<DeviceSupportPage />)
+    await screen.findByText('EXYNOS 7420')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Bulk import' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Bulk import entries' }), {
+      target: { value: 'SM4350,exclude\nsm4350,below-minspec' },
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Preview import' }))
+
+    expect(screen.getByRole('dialog').textContent).toContain('1 entries')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, import' }))
+
+    await waitFor(() => expect(mockBulkUpsert).toHaveBeenCalled())
+    expect(mockBulkUpsert).toHaveBeenCalledWith(authenticatedFetch, [
+      { soc: 'sm4350', decision: 'below-minspec' },
+    ])
+  })
+
+  it('rejects a bulk paste over the entry cap after deduping', async () => {
+    render(<DeviceSupportPage />)
+    await screen.findByText('EXYNOS 7420')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Bulk import' }))
+    const tooMany = Array.from({ length: 1001 }, (_, i) => `SOC${i},exclude`).join('\n')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Bulk import entries' }), {
+      target: { value: tooMany },
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Preview import' }))
+
+    await screen.findByText(/At most 1000 entries per import/)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mockBulkUpsert).not.toHaveBeenCalled()
+  })
+
+  it('shows every bulk-import parse error, not just the first', async () => {
+    render(<DeviceSupportPage />)
+    await screen.findByText('EXYNOS 7420')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Bulk import' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Bulk import entries' }), {
+      target: { value: 'BAD_LINE_NO_COMMA\nSM4350,not-a-decision' },
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Preview import' }))
+
+    expect(await screen.findByText(/Line 1: expected "soc,decision"/)).toBeTruthy()
+    expect(screen.getByText(/Line 2: decision must be/)).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(mockBulkUpsert).not.toHaveBeenCalled()
   })
@@ -273,5 +393,39 @@ describe('DeviceSupportPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Check' }))
 
     await screen.findByText("'soc' is required and must be a non-empty string")
+  })
+
+  it('ignores an earlier lookup response that resolves after a later one', async () => {
+    let resolveFirst: (value: PublicDeviceDecision) => void = () => {}
+    let resolveSecond: (value: PublicDeviceDecision) => void = () => {}
+    const firstPromise = new Promise<PublicDeviceDecision>(resolve => {
+      resolveFirst = resolve
+    })
+    const secondPromise = new Promise<PublicDeviceDecision>(resolve => {
+      resolveSecond = resolve
+    })
+    mockFetchDecision.mockReturnValueOnce(firstPromise).mockReturnValueOnce(secondPromise)
+
+    render(<DeviceSupportPage />)
+
+    const input = screen.getByRole('textbox', { name: 'SoC to look up' })
+
+    await userEvent.type(input, 'SM7125{Enter}')
+    await userEvent.clear(input)
+    await userEvent.type(input, 'SM8750{Enter}')
+
+    // The later (second) request resolves first...
+    resolveSecond('exclude')
+    const resultSoc = await screen.findByText('SM8750')
+    expect(resultSoc.closest('.device-lookup-result')?.textContent).toContain('End of support')
+
+    // ...so the earlier (first) request resolving afterwards must not clobber it. SM6115 (seed
+    // data) already renders "Below minspec" elsewhere on the page, so assert on the SoC in the
+    // result rather than the decision label, which would pass even if the race clobbered it.
+    resolveFirst('below-minspec')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(screen.getByText('SM8750')).toBeTruthy()
+    expect(screen.queryByText('SM7125')).toBeNull()
   })
 })

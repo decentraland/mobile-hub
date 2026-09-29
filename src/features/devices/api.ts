@@ -25,6 +25,16 @@ interface ApiResponse<T> {
 
 type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>
 
+/** Carries the HTTP status so callers can tell "not authorized" (401/403) apart from any other failure. */
+export class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
 async function unwrap<T>(response: Response, fallbackError: string): Promise<T> {
   // A route that doesn't exist yet on the target env (e.g. this feature's backend not deployed
   // there) answers with a plain-text body, not the {ok, data} envelope -- parse defensively so
@@ -37,7 +47,7 @@ async function unwrap<T>(response: Response, fallbackError: string): Promise<T> 
   }
 
   if (!json || !json.ok || json.data === undefined) {
-    throw new Error(json?.error || `${fallbackError} (${response.status})`)
+    throw new ApiError(json?.error || `${fallbackError} (${response.status})`, response.status)
   }
 
   return json.data

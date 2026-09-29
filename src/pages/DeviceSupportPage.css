@@ -89,6 +89,13 @@
   font-size: 13px;
 }
 
+.devices-error-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .devices-link-button {
   background: none;
   border: none;

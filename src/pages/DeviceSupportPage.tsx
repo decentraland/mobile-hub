@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState, type FC } from 'react'
+import { useCallback, useEffect, useRef, useState, type FC } from 'react'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
 import { useAuth } from '../contexts/auth'
 import { isDevMode } from '../utils/devIdentity'
 import {
+  ApiError,
   fetchDeviceDecision,
   fetchDeviceSupportList,
   upsertDeviceSupport,
@@ -15,9 +16,16 @@ import {
 } from '../features/devices/api'
 import './DeviceSupportPage.css'
 
+// Mirrors the mobile-bff logic/device-support.ts constant of the same name. No shared package
+// between the two repos, so this has to be kept in sync by hand.
+const SOC_MAX_LENGTH = 64
+// Mirrors bulk-upsert-device-support-handler.ts's MAX_BULK_ENTRIES -- same caveat as above.
+const MAX_BULK_ENTRIES = 1000
+const MAX_DISPLAYED_ERRORS = 20
+
 type ConfirmAction =
   | { kind: 'upsert'; soc: string; from: DeviceDecision; next: DeviceDecision }
-  | { kind: 'bulk-upsert'; entries: BulkUpsertEntry[] }
+  | { kind: 'bulk-upsert'; entries: BulkUpsertEntry[]; newCount: number; changedCount: number; unchangedCount: number }
   | { kind: 'delete'; soc: string }
 
 type ConfirmState =
@@ -48,8 +56,20 @@ function otherDecision(decision: DeviceDecision): DeviceDecision {
   return decision === 'exclude' ? 'below-minspec' : 'exclude'
 }
 
+// Matches the backend's identity for a chipset: soc_key = REPLACE(UPPER(TRIM(soc_model)), ' ', '').
+// Needed client-side to pre-detect "this SoC is already listed" (for the overwrite confirm and the
+// bulk-import preview) -- the actual list state itself is always refreshed from the server after a
+// mutation rather than patched locally, so this is only ever used against a just-loaded snapshot.
+function socKey(soc: string): string {
+  return soc.trim().toUpperCase().replace(/ /g, '')
+}
+
+function isAuthError(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 401 || err.status === 403)
+}
+
 function parseBulkInput(text: string): { entries: BulkUpsertEntry[]; errors: string[] } {
-  const entries: BulkUpsertEntry[] = []
+  const bySocKey = new Map<string, BulkUpsertEntry>()
   const errors: string[] = []
 
   text.split(/\r?\n/).forEach((rawLine, index) => {
@@ -63,16 +83,23 @@ function parseBulkInput(text: string): { entries: BulkUpsertEntry[]; errors: str
     }
 
     const [soc, rawDecision] = parts
+    if (soc.length > SOC_MAX_LENGTH) {
+      errors.push(`Line ${index + 1}: SoC must be at most ${SOC_MAX_LENGTH} characters`)
+      return
+    }
     const decision = rawDecision.toLowerCase()
     if (decision !== 'exclude' && decision !== 'below-minspec') {
       errors.push(`Line ${index + 1}: decision must be "exclude" or "below-minspec", got "${rawDecision}"`)
       return
     }
 
-    entries.push({ soc, decision })
+    // Last occurrence for a given key wins, matching what the server does when the same soc_key
+    // appears twice in one bulkUpsert batch -- deduping here keeps the "N entries" count (and the
+    // preview below) an accurate reflection of what actually gets written.
+    bySocKey.set(socKey(soc), { soc, decision })
   })
 
-  return { entries, errors }
+  return { entries: [...bySocKey.values()], errors }
 }
 
 export const DeviceSupportPage: FC = () => {
@@ -83,6 +110,7 @@ export const DeviceSupportPage: FC = () => {
   const [entries, setEntries] = useState<DeviceSupportEntry[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [notAllowed, setNotAllowed] = useState(false)
   const [confirm, setConfirm] = useState<ConfirmState>({ status: 'idle' })
   const [showAddEntry, setShowAddEntry] = useState(false)
   const [showBulkImport, setShowBulkImport] = useState(false)
@@ -94,10 +122,15 @@ export const DeviceSupportPage: FC = () => {
     }
     setIsLoading(true)
     setLoadError(null)
+    setNotAllowed(false)
     try {
       setEntries(sortBySoc(await fetchDeviceSupportList(authenticatedFetch)))
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Failed to load device support entries')
+      if (isAuthError(err)) {
+        setNotAllowed(true)
+      } else {
+        setLoadError(err instanceof Error ? err.message : 'Failed to load device support entries')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -107,18 +140,17 @@ export const DeviceSupportPage: FC = () => {
     loadEntries()
   }, [loadEntries])
 
-  const replaceEntry = (updated: DeviceSupportEntry) => {
-    setEntries(prev => (prev ? prev.map(e => (e.soc === updated.soc ? updated : e)) : prev))
+  const handleEntrySaved = () => {
+    setShowAddEntry(false)
+    loadEntries()
   }
 
-  const handleEntrySaved = (entry: DeviceSupportEntry) => {
-    setEntries(prev => {
-      const list = prev ?? []
-      const exists = list.some(e => e.soc === entry.soc)
-      const next = exists ? list.map(e => (e.soc === entry.soc ? entry : e)) : [...list, entry]
-      return sortBySoc(next)
-    })
+  const handleRequestOverwrite = (existing: DeviceSupportEntry, soc: string, decision: DeviceDecision) => {
     setShowAddEntry(false)
+    setConfirm({
+      status: 'confirming',
+      action: { kind: 'upsert', soc, from: existing.decision, next: decision },
+    })
   }
 
   const handleToggleDecision = (entry: DeviceSupportEntry) => {
@@ -133,7 +165,20 @@ export const DeviceSupportPage: FC = () => {
   }
 
   const handleBulkParsed = (parsedEntries: BulkUpsertEntry[]) => {
-    setConfirm({ status: 'confirming', action: { kind: 'bulk-upsert', entries: parsedEntries } })
+    const currentByKey = new Map((entries ?? []).map(e => [socKey(e.soc), e]))
+    let newCount = 0
+    let changedCount = 0
+    let unchangedCount = 0
+    for (const entry of parsedEntries) {
+      const existing = currentByKey.get(socKey(entry.soc))
+      if (!existing) newCount++
+      else if (existing.decision !== entry.decision) changedCount++
+      else unchangedCount++
+    }
+    setConfirm({
+      status: 'confirming',
+      action: { kind: 'bulk-upsert', entries: parsedEntries, newCount, changedCount, unchangedCount },
+    })
   }
 
   const handleConfirmAction = async () => {
@@ -142,15 +187,15 @@ export const DeviceSupportPage: FC = () => {
     setConfirm({ status: 'saving', action })
     try {
       if (action.kind === 'upsert') {
-        const updated = await upsertDeviceSupport(authenticatedFetch, action.soc, action.next)
-        replaceEntry(updated)
+        await upsertDeviceSupport(authenticatedFetch, action.soc, action.next)
+        await loadEntries()
       } else if (action.kind === 'bulk-upsert') {
         await bulkUpsertDeviceSupport(authenticatedFetch, action.entries)
         setShowBulkImport(false)
         await loadEntries()
       } else {
         await deleteDeviceSupport(authenticatedFetch, action.soc)
-        setEntries(prev => (prev ? prev.filter(e => e.soc !== action.soc) : prev))
+        await loadEntries()
       }
       setConfirm({ status: 'idle' })
     } catch (err) {
@@ -181,7 +226,20 @@ export const DeviceSupportPage: FC = () => {
 
         <DeviceLookup />
 
-        {canEdit ? (
+        {!canEdit && (
+          <div className="devices-warning">
+            Sign in with an allowed wallet to view and manage the override list.
+          </div>
+        )}
+
+        {canEdit && notAllowed && (
+          <div className="devices-warning">
+            Your wallet isn't in the allowed list for device support edits — ask an admin to add
+            it.
+          </div>
+        )}
+
+        {canEdit && !notAllowed && (
           <>
             <div className="devices-header-row">
               <h2>Overrides</h2>
@@ -210,7 +268,9 @@ export const DeviceSupportPage: FC = () => {
             {showAddEntry && (
               <AddEntryForm
                 authenticatedFetch={authenticatedFetch}
+                entries={entries}
                 onSaved={handleEntrySaved}
+                onRequestOverwrite={handleRequestOverwrite}
                 onCancel={() => setShowAddEntry(false)}
               />
             )}
@@ -243,10 +303,6 @@ export const DeviceSupportPage: FC = () => {
               </div>
             )}
           </>
-        ) : (
-          <div className="devices-warning">
-            Sign in with an allowed wallet to view and manage the override list.
-          </div>
         )}
       </div>
 
@@ -262,20 +318,26 @@ const DeviceLookup: FC = () => {
   const [result, setResult] = useState<{ soc: string; decision: PublicDeviceDecision } | null>(null)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Guards against an earlier, slower request's response landing after a later one's and
+  // clobbering it -- e.g. two fast Enters while the first lookup is still in flight.
+  const requestIdRef = useRef(0)
 
   const handleCheck = async () => {
     const trimmed = soc.trim()
     if (!trimmed) return
+    const requestId = ++requestIdRef.current
     setChecking(true)
     setError(null)
     setResult(null)
     try {
       const decision = await fetchDeviceDecision(trimmed)
+      if (requestIdRef.current !== requestId) return
       setResult({ soc: trimmed, decision })
     } catch (err) {
+      if (requestIdRef.current !== requestId) return
       setError(err instanceof Error ? err.message : 'Failed to check device')
     } finally {
-      setChecking(false)
+      if (requestIdRef.current === requestId) setChecking(false)
     }
   }
 
@@ -324,9 +386,10 @@ const DeviceRow: FC<{
     <div className="device-row-main">
       <div className="device-row-labels">
         <span className="device-row-soc">{entry.soc}</span>
-        {entry.updatedBy && (
-          <span className="device-row-audit">Updated by {shortAddress(entry.updatedBy)}</span>
-        )}
+        <span className="device-row-audit">
+          Updated {new Date(entry.updatedAt).toLocaleString()}
+          {entry.updatedBy ? ` by ${shortAddress(entry.updatedBy)}` : ''}
+        </span>
       </div>
       <div className="device-row-actions">
         <button
@@ -352,9 +415,11 @@ const DeviceRow: FC<{
 
 const AddEntryForm: FC<{
   authenticatedFetch: AuthenticatedFetch
-  onSaved: (entry: DeviceSupportEntry) => void
+  entries: DeviceSupportEntry[] | null
+  onSaved: () => void
+  onRequestOverwrite: (existing: DeviceSupportEntry, soc: string, decision: DeviceDecision) => void
   onCancel: () => void
-}> = ({ authenticatedFetch, onSaved, onCancel }) => {
+}> = ({ authenticatedFetch, entries, onSaved, onRequestOverwrite, onCancel }) => {
   const [soc, setSoc] = useState('')
   const [decision, setDecision] = useState<DeviceDecision>('exclude')
   const [saving, setSaving] = useState(false)
@@ -367,11 +432,19 @@ const AddEntryForm: FC<{
       return
     }
 
+    // An already-listed SoC is a decision change on a live override, not a fresh entry -- route
+    // it through the same confirm-with-diff flow as toggling a row, instead of overwriting silently.
+    const existing = entries?.find(e => socKey(e.soc) === socKey(trimmed))
+    if (existing) {
+      onRequestOverwrite(existing, trimmed, decision)
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
-      const entry = await upsertDeviceSupport(authenticatedFetch, trimmed, decision)
-      onSaved(entry)
+      await upsertDeviceSupport(authenticatedFetch, trimmed, decision)
+      onSaved()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save device support entry')
       setSaving(false)
@@ -420,19 +493,23 @@ const BulkImportForm: FC<{
   onCancel: () => void
 }> = ({ onParsed, onCancel }) => {
   const [text, setText] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<string[]>([])
 
   const handlePreview = () => {
-    const { entries, errors } = parseBulkInput(text)
-    if (errors.length > 0) {
-      setError(errors[0])
+    const { entries, errors: parseErrors } = parseBulkInput(text)
+    if (parseErrors.length > 0) {
+      setErrors(parseErrors)
       return
     }
     if (entries.length === 0) {
-      setError('Paste at least one "soc,decision" line')
+      setErrors(['Paste at least one "soc,decision" line'])
       return
     }
-    setError(null)
+    if (entries.length > MAX_BULK_ENTRIES) {
+      setErrors([`At most ${MAX_BULK_ENTRIES} entries per import (${entries.length} after removing duplicates)`])
+      return
+    }
+    setErrors([])
     onParsed(entries)
   }
 
@@ -442,7 +519,7 @@ const BulkImportForm: FC<{
       <p className="device-bulk-hint">
         One entry per line: <code>SOC,decision</code> (comma or tab separated) — decision is{' '}
         <code>exclude</code> or <code>below-minspec</code>. Lines starting with <code>#</code> are
-        ignored.
+        ignored. A SoC repeated in the paste keeps only its last line.
       </p>
       <textarea
         aria-label="Bulk import entries"
@@ -451,7 +528,16 @@ const BulkImportForm: FC<{
         placeholder={'EXYNOS 7420,exclude\nSM6115,below-minspec'}
         onChange={e => setText(e.target.value)}
       />
-      {error && <div className="devices-error">{error}</div>}
+      {errors.length > 0 && (
+        <div className="devices-error">
+          <ul className="devices-error-list">
+            {errors.slice(0, MAX_DISPLAYED_ERRORS).map(e => (
+              <li key={e}>{e}</li>
+            ))}
+            {errors.length > MAX_DISPLAYED_ERRORS && <li>…and {errors.length - MAX_DISPLAYED_ERRORS} more</li>}
+          </ul>
+        </div>
+      )}
       <div className="device-create-actions">
         <button className="devices-button-secondary" onClick={onCancel}>
           Cancel
@@ -485,7 +571,7 @@ const ConfirmDialog: FC<{
           {isDelete
             ? 'This permanently removes the override. The device falls back to "keep" (fully supported).'
             : isBulk
-              ? 'This will add or update every entry below in one batch.'
+              ? 'Entries not listed here keep their current value — this only touches the SoCs below.'
               : 'This will change what the app decides for this chipset immediately.'}
         </p>
 
@@ -509,7 +595,10 @@ const ConfirmDialog: FC<{
 
         {action.kind === 'bulk-upsert' && (
           <div className="devices-bulk-preview">
-            <p className="devices-bulk-count">{action.entries.length} entries</p>
+            <p className="devices-bulk-count">
+              {action.entries.length} entries — {action.newCount} new, {action.changedCount} changed
+              {action.unchangedCount > 0 ? `, ${action.unchangedCount} unchanged` : ''}
+            </p>
             <ul>
               {action.entries.slice(0, 8).map(e => (
                 <li key={e.soc}>

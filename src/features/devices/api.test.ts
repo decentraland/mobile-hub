@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
+  ApiError,
   fetchDeviceDecision,
   fetchDeviceSupportList,
   upsertDeviceSupport,
@@ -60,6 +61,24 @@ describe('fetchDeviceDecision', () => {
 
     await expect(fetchDeviceDecision('SM8750')).rejects.toThrow('Failed to fetch device support decision (404)')
   })
+
+  it('throws an ApiError carrying the response status, not just a plain Error', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ ok: false, error: 'nope' }, 400))
+
+    const error = await fetchDeviceDecision('SM8750').catch(e => e)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(400)
+  })
+
+  it('carries the 404 status through on a non-JSON body too', async () => {
+    fetchMock.mockResolvedValue(textResponse('Not found', 404))
+
+    const error = await fetchDeviceDecision('SM8750').catch(e => e)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(404)
+  })
 })
 
 describe('fetchDeviceSupportList', () => {
@@ -72,6 +91,17 @@ describe('fetchDeviceSupportList', () => {
 
     expect(authenticatedFetch).toHaveBeenCalledWith(expect.stringContaining('/backoffice/device-support'))
     expect(entries).toEqual([TEST_ENTRY])
+  })
+
+  it('throws an ApiError with status 403 for a signed-in wallet outside ALLOWED_USERS', async () => {
+    const authenticatedFetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ ok: false, error: 'Forbidden: User not in allowed list' }, 403))
+
+    const error = await fetchDeviceSupportList(authenticatedFetch).catch(e => e)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(403)
   })
 
   it('throws the server error message on failure', async () => {
