@@ -595,6 +595,9 @@ describe('DeviceSupportPage', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(screen.queryByText('SM8750')).toBeNull()
+    // Also not stuck on "Checking…" -- getByRole('name': 'Check') itself fails if it is, since
+    // the accessible name changes with the label.
+    expect(screen.getByRole('button', { name: 'Check' })).toHaveProperty('disabled', false)
   })
 
   it('ignores an earlier lookup response that resolves after a later one', async () => {

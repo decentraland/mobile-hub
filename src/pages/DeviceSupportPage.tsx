@@ -379,9 +379,13 @@ const DeviceLookup: FC<{ invalidatedBy: number }> = ({ invalidatedBy }) => {
   // showing the pre-edit decision right when an operator would read it as confirmation. Also bump
   // requestIdRef so a lookup still in flight at the moment of invalidation gets discarded by the
   // same guard handleCheck already uses, instead of landing afterwards and resurrecting the
-  // pre-write decision right after this effect just cleared it.
+  // pre-write decision right after this effect just cleared it. That bump orphans handleCheck's
+  // own finally too (its `requestIdRef.current === requestId` check now never matches for that
+  // request), so checking is reset here as well -- otherwise the button is stuck on "Checking…"
+  // with no way to recover it since it's also disabled while checking is true.
   useEffect(() => {
     setResult(null)
+    setChecking(false)
     requestIdRef.current++
   }, [invalidatedBy])
 
