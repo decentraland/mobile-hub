@@ -144,7 +144,8 @@ export const CampaignsPage: FC = () => {
         {campaigns && campaigns.length === 0 && !showCreate && (
           <div className="campaigns-empty">
             No campaigns yet. Create one, then point the ad group's App URL at{' '}
-            <code>decentraland://open?c=&lt;token&gt;</code>.
+            <code>decentraland://open?c=&lt;token&gt;</code>, or any other ad's final URL at{' '}
+            <code>https://mobile.dclexplorer.com/open?c=&lt;token&gt;</code>.
           </div>
         )}
 
