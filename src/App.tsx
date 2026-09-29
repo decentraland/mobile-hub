@@ -10,6 +10,7 @@ import { WorldsPage } from './pages/WorldsPage'
 import { CurationPage } from './pages/CurationPage'
 import { VersionsPage } from './pages/VersionsPage'
 import { FeatureFlagsPage } from './pages/FeatureFlagsPage'
+import { DeviceSupportPage } from './pages/DeviceSupportPage'
 import { CampaignsPage } from './pages/CampaignsPage'
 import { PushPage } from './pages/PushPage'
 import { config } from './config'
@@ -36,6 +37,7 @@ function App() {
           {activeView === 'curation' && <CurationPage />}
           {activeView === 'versions' && <VersionsPage />}
           {activeView === 'flags' && <FeatureFlagsPage />}
+          {activeView === 'devices' && <DeviceSupportPage />}
           {activeView === 'campaigns' && <CampaignsPage />}
           {activeView === 'push' && <PushPage />}
         </BansProvider>
