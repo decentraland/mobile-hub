@@ -132,6 +132,10 @@ export const DeviceSupportPage: FC = () => {
   // mutation's post-save refresh, all call it, and a slower earlier call landing after a faster
   // later one would otherwise show stale data.
   const loadRequestIdRef = useRef(0)
+  // Bumped after every successful mutation so the (otherwise independent) lookup widget below
+  // drops a stale result rather than keep showing the pre-edit decision as if it were current.
+  const [lookupInvalidation, setLookupInvalidation] = useState(0)
+  const invalidateLookup = () => setLookupInvalidation(v => v + 1)
 
   const loadEntries = useCallback(async () => {
     if (!canEdit) {
@@ -166,6 +170,7 @@ export const DeviceSupportPage: FC = () => {
   const handleEntrySaved = () => {
     setShowAddEntry(false)
     loadEntries()
+    invalidateLookup()
   }
 
   const handleRequestOverwrite = (existing: DeviceSupportEntry, soc: string, decision: DeviceDecision) => {
@@ -225,6 +230,7 @@ export const DeviceSupportPage: FC = () => {
         await loadEntries()
       }
       setConfirm({ status: 'idle' })
+      invalidateLookup()
     } catch (err) {
       // The dialog explains this specific action's failure, but the list/Add entry/Bulk import
       // underneath would otherwise still look usable against a session the server just rejected --
@@ -257,7 +263,7 @@ export const DeviceSupportPage: FC = () => {
           </p>
         </header>
 
-        <DeviceLookup />
+        <DeviceLookup invalidatedBy={lookupInvalidation} />
 
         {!canEdit && (
           <div className="devices-warning">
@@ -359,7 +365,7 @@ export const DeviceSupportPage: FC = () => {
   )
 }
 
-const DeviceLookup: FC = () => {
+const DeviceLookup: FC<{ invalidatedBy: number }> = ({ invalidatedBy }) => {
   const [soc, setSoc] = useState('')
   const [result, setResult] = useState<{ soc: string; decision: PublicDeviceDecision } | null>(null)
   const [checking, setChecking] = useState(false)
@@ -367,6 +373,13 @@ const DeviceLookup: FC = () => {
   // Guards against an earlier, slower request's response landing after a later one's and
   // clobbering it -- e.g. two fast Enters while the first lookup is still in flight.
   const requestIdRef = useRef(0)
+
+  // This widget is otherwise independent of the edit flow below, so a result it already fetched
+  // doesn't get refreshed on its own -- drop it after any mutation rather than let it keep
+  // showing the pre-edit decision right when an operator would read it as confirmation.
+  useEffect(() => {
+    setResult(null)
+  }, [invalidatedBy])
 
   const handleCheck = async () => {
     const trimmed = soc.trim()
@@ -398,7 +411,7 @@ const DeviceLookup: FC = () => {
         <input
           aria-label="SoC to look up"
           value={soc}
-          maxLength={64}
+          maxLength={SOC_MAX_LENGTH}
           placeholder="e.g. SM7125"
           onChange={e => setSoc(e.target.value)}
           onKeyDown={e => {
@@ -477,6 +490,10 @@ const AddEntryForm: FC<{
       setError('SoC is required')
       return
     }
+    // A stale error from a previous attempt would otherwise sit under the confirm dialog (the
+    // overwrite branch below returns without ever reaching a save that could clear it) or linger
+    // needlessly if this attempt succeeds outright.
+    setError(null)
 
     // Without a loaded list there's no way to tell an overwrite from a fresh entry -- refuse
     // rather than risk silently clobbering a live override the operator can't currently see.
@@ -494,7 +511,6 @@ const AddEntryForm: FC<{
     }
 
     setSaving(true)
-    setError(null)
     try {
       await upsertDeviceSupport(authenticatedFetch, trimmed, decision)
       onSaved()
@@ -512,7 +528,7 @@ const AddEntryForm: FC<{
         <input
           aria-label="New entry SoC"
           value={soc}
-          maxLength={64}
+          maxLength={SOC_MAX_LENGTH}
           placeholder="EXYNOS 7420"
           onChange={e => setSoc(e.target.value)}
         />

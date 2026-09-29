@@ -281,6 +281,23 @@ describe('DeviceSupportPage', () => {
     expect(mockUpsert).toHaveBeenCalledWith(authenticatedFetch, 'exynos7420', 'below-minspec')
   })
 
+  it('clears a stale add-entry error once the overwrite confirm opens', async () => {
+    render(<DeviceSupportPage />)
+    await screen.findByText('EXYNOS 7420')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add entry' }))
+    // First produce a stale error (the overwrite branch below returns before ever clearing it if
+    // handleSave doesn't clear it up front).
+    await userEvent.click(screen.getByRole('button', { name: 'Save entry' }))
+    await screen.findByText('SoC is required')
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'New entry SoC' }), 'EXYNOS 7420')
+    await userEvent.click(screen.getByRole('button', { name: 'Save entry' }))
+
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.queryByText('SoC is required')).toBeNull()
+  })
+
   it('keeps the add-entry form open with its typed value when the overwrite confirm is cancelled', async () => {
     render(<DeviceSupportPage />)
     await screen.findByText('EXYNOS 7420')
@@ -526,6 +543,28 @@ describe('DeviceSupportPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Check' }))
 
     await screen.findByText("'soc' is required and must be a non-empty string")
+  })
+
+  it('clears the lookup result after a mutation elsewhere on the page, not just a new lookup', async () => {
+    mockFetchDecision.mockResolvedValue('below-minspec')
+    mockUpsert.mockResolvedValue({ ...EXYNOS, decision: 'below-minspec' })
+    mockFetchList
+      .mockResolvedValueOnce([EXYNOS, SM6115])
+      .mockResolvedValueOnce([{ ...EXYNOS, decision: 'below-minspec' }, SM6115])
+
+    render(<DeviceSupportPage />)
+    await screen.findByText('EXYNOS 7420')
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'SoC to look up' }), 'SM7125')
+    await userEvent.click(screen.getByRole('button', { name: 'Check' }))
+    // "SM7125" isn't a seeded soc, so its presence is only ever the lookup result.
+    await screen.findByText('SM7125')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change decision for EXYNOS 7420' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, save' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    expect(screen.queryByText('SM7125')).toBeNull()
   })
 
   it('ignores an earlier lookup response that resolves after a later one', async () => {
