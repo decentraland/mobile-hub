@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -196,8 +197,31 @@ describe('DeviceSupportPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Change decision for EXYNOS 7420' }))
     await userEvent.click(screen.getByRole('button', { name: 'Yes, save' }))
 
-    await screen.findByText(/wallet isn't in the allowed list/i)
-    expect(screen.queryByText('Forbidden: User not in allowed list')).toBeNull()
+    // Scoped to the dialog: setting the page-level authIssue also reveals the (identically
+    // worded) page banner underneath the still-open modal, so an unscoped query would be ambiguous.
+    const dialog = await screen.findByRole('dialog')
+    await within(dialog).findByText(/wallet isn't in the allowed list/i)
+    expect(within(dialog).queryByText('Forbidden: User not in allowed list')).toBeNull()
+  })
+
+  it('reveals the not-allowed banner after dismissing a confirm dialog that failed with a 403', async () => {
+    mockUpsert.mockRejectedValue(new ApiError('Forbidden: User not in allowed list', 403))
+
+    render(<DeviceSupportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Change decision for EXYNOS 7420' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, save' }))
+    const dialog = await screen.findByRole('dialog')
+    await within(dialog).findByText(/wallet isn't in the allowed list/i)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    // Not just the dialog gone -- the list/Add entry/Bulk import must not look usable anymore
+    // against a session the server just rejected.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByText(/wallet isn't in the allowed list/i)).toBeTruthy()
+    expect(screen.queryByText('EXYNOS 7420')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add entry' })).toBeNull()
   })
 
   it('adds a new entry from the form and reloads the list', async () => {
@@ -287,7 +311,7 @@ describe('DeviceSupportPage', () => {
     expect(screen.getByRole('dialog').textContent).toContain('No decision change')
   })
 
-  it('disables Add entry until the list has loaded, so the overwrite guard can never be bypassed', async () => {
+  it('disables Add entry and Bulk import until the list has loaded, so neither can misreport against unknown state', async () => {
     mockFetchList.mockRejectedValue(new Error('network down'))
 
     render(<DeviceSupportPage />)
@@ -295,6 +319,7 @@ describe('DeviceSupportPage', () => {
     await screen.findByText('network down')
 
     expect(screen.getByRole('button', { name: 'Add entry' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: 'Bulk import' })).toHaveProperty('disabled', true)
   })
 
   it('rejects an empty SoC in the add-entry form client-side', async () => {
@@ -452,31 +477,29 @@ describe('DeviceSupportPage', () => {
     expect(mockBulkUpsert).not.toHaveBeenCalled()
   })
 
-  it('ignores an earlier loadEntries response landing after a mutation-triggered reload', async () => {
-    let resolveInitial: (value: DeviceSupportEntry[]) => void = () => {}
-    const initialPromise = new Promise<DeviceSupportEntry[]>(resolve => {
-      resolveInitial = resolve
+  it('ignores a stale response from React StrictMode double-invoking the mount effect', async () => {
+    // The real app renders inside <StrictMode> (see main.tsx), which intentionally fires effects
+    // twice on mount in development -- so the initial loadEntries() call genuinely runs twice, and
+    // an out-of-order resolution between them is a real scenario, not just a theoretical one.
+    // (Add entry/Bulk import are disabled while entries is null, and the confirm modal blocks
+    // everything else while a mutation's own reload is in flight, so this is the one path left.)
+    let resolveFirst: (value: DeviceSupportEntry[]) => void = () => {}
+    const firstPromise = new Promise<DeviceSupportEntry[]>(resolve => {
+      resolveFirst = resolve
     })
-    // The initial mount load is left pending; Add entry is disabled while entries is null, but
-    // Bulk import isn't, so it's the only way to fire a second loadEntries before the first settles.
-    mockFetchList.mockReturnValueOnce(initialPromise).mockResolvedValueOnce([SM6115])
-    mockBulkUpsert.mockResolvedValue(1)
+    mockFetchList.mockReturnValueOnce(firstPromise).mockResolvedValueOnce([SM6115])
 
-    render(<DeviceSupportPage />)
+    render(
+      <StrictMode>
+        <DeviceSupportPage />
+      </StrictMode>
+    )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Bulk import' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Bulk import entries' }), {
-      target: { value: 'SM6115,below-minspec' },
-    })
-    await userEvent.click(screen.getByRole('button', { name: 'Preview import' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Yes, import' }))
-
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(screen.getByText('SM6115')).toBeTruthy()
+    await screen.findByText('SM6115')
     expect(screen.queryByText('EXYNOS 7420')).toBeNull()
 
-    // The stale initial request finally resolves -- it must not resurrect the old list.
-    resolveInitial([EXYNOS, SM6115])
+    // The first mount's stale request finally resolves -- it must not resurrect the old list.
+    resolveFirst([EXYNOS, SM6115])
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(screen.queryByText('EXYNOS 7420')).toBeNull()

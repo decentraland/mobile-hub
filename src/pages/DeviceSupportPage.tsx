@@ -226,6 +226,12 @@ export const DeviceSupportPage: FC = () => {
       }
       setConfirm({ status: 'idle' })
     } catch (err) {
+      // The dialog explains this specific action's failure, but the list/Add entry/Bulk import
+      // underneath would otherwise still look usable against a session the server just rejected --
+      // set the page-level state too so dismissing the dialog reveals the real (banner) state
+      // instead of a stale "everything's fine" view.
+      const issue = classifyAuthError(err)
+      if (issue) setAuthIssue(issue)
       setConfirm({
         status: 'error',
         action,
@@ -282,6 +288,8 @@ export const DeviceSupportPage: FC = () => {
               <div className="devices-header-actions">
                 <button
                   className="devices-button-secondary"
+                  disabled={entries === null}
+                  title={entries === null ? 'Load the list before bulk importing' : undefined}
                   onClick={() => {
                     setShowBulkImport(v => !v)
                     setShowAddEntry(false)
