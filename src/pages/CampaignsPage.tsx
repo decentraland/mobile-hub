@@ -16,6 +16,7 @@ import {
   describeTarget,
   type CampaignFormDraft,
 } from '../features/campaigns/validation'
+import { campaignDeepLink } from '../features/campaigns/deepLink'
 import './CampaignsPage.css'
 
 type ConfirmState =
@@ -142,7 +143,8 @@ export const CampaignsPage: FC = () => {
 
         {campaigns && campaigns.length === 0 && !showCreate && (
           <div className="campaigns-empty">
-            No campaigns yet. Create one, then point an ad group's App URL at{' '}
+            No campaigns yet. Create one, then point the ad group's App URL at{' '}
+            <code>decentraland://open?c=&lt;token&gt;</code>, or any other ad's final URL at{' '}
             <code>https://mobile.dclexplorer.com/open?c=&lt;token&gt;</code>.
           </div>
         )}
@@ -211,6 +213,13 @@ const CampaignRow: FC<{
           → {campaign.target.type === 'world' ? 'World' : 'Parcel'}{' '}
           <code>{describeTarget(campaign.target)}</code>
         </span>
+        <div className="campaign-row-deeplink">
+          <code>{campaignDeepLink(campaign.token)}</code>
+          <CopyButton
+            value={campaignDeepLink(campaign.token)}
+            label={`Copy deep link for ${campaign.token}`}
+          />
+        </div>
       </div>
       {canEdit && (
         <div className="campaign-row-actions">
@@ -235,6 +244,33 @@ const CampaignRow: FC<{
     </div>
   </section>
 )
+
+/** Hands the deep link to the clipboard, so it can be pasted into the ad group as-is. */
+const CopyButton: FC<{ value: string; label: string }> = ({ value, label }) => {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  useEffect(() => {
+    if (state === 'idle') return
+    const timer = setTimeout(() => setState('idle'), 1500)
+    return () => clearTimeout(timer)
+  }, [state])
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setState('copied')
+    } catch {
+      // Denied permission or an insecure origin: the link stays on screen to copy by hand.
+      setState('failed')
+    }
+  }
+
+  return (
+    <button className="campaign-copy-button" aria-label={label} onClick={handleCopy}>
+      {state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed' : 'Copy'}
+    </button>
+  )
+}
 
 const CampaignForm: FC<{
   heading: string
@@ -279,9 +315,18 @@ const CampaignForm: FC<{
           value={draft.token}
           maxLength={64}
           disabled={tokenLocked}
-          placeholder="summer2022"
+          placeholder="summer-2026"
           onChange={e => set('token', e.target.value)}
         />
+        <span className="campaign-field-hint">
+          Kebab-case: lowercase letters, digits, and single dashes between them.
+          <br />
+          Good: <code>aesir-online</code> <code>summer-2026</code> <code>launch2026</code>
+          <br />
+          Bad: <code className="is-bad">Summer 2026</code>{' '}
+          <code className="is-bad">summer_2026</code> <code className="is-bad">-summer-</code>{' '}
+          <code className="is-bad">verano-2026-ñ</code>
+        </span>
       </label>
 
       <label className="campaign-field">
