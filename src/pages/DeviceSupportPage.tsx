@@ -376,9 +376,13 @@ const DeviceLookup: FC<{ invalidatedBy: number }> = ({ invalidatedBy }) => {
 
   // This widget is otherwise independent of the edit flow below, so a result it already fetched
   // doesn't get refreshed on its own -- drop it after any mutation rather than let it keep
-  // showing the pre-edit decision right when an operator would read it as confirmation.
+  // showing the pre-edit decision right when an operator would read it as confirmation. Also bump
+  // requestIdRef so a lookup still in flight at the moment of invalidation gets discarded by the
+  // same guard handleCheck already uses, instead of landing afterwards and resurrecting the
+  // pre-write decision right after this effect just cleared it.
   useEffect(() => {
     setResult(null)
+    requestIdRef.current++
   }, [invalidatedBy])
 
   const handleCheck = async () => {

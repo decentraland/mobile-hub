@@ -567,6 +567,36 @@ describe('DeviceSupportPage', () => {
     expect(screen.queryByText('SM7125')).toBeNull()
   })
 
+  it('discards an in-flight lookup response that resolves after a mutation invalidates it', async () => {
+    let resolveLookup: (value: PublicDeviceDecision) => void = () => {}
+    const lookupPromise = new Promise<PublicDeviceDecision>(resolve => {
+      resolveLookup = resolve
+    })
+    mockFetchDecision.mockReturnValueOnce(lookupPromise)
+    mockUpsert.mockResolvedValue({ ...EXYNOS, decision: 'below-minspec' })
+    mockFetchList
+      .mockResolvedValueOnce([EXYNOS, SM6115])
+      .mockResolvedValueOnce([{ ...EXYNOS, decision: 'below-minspec' }, SM6115])
+
+    render(<DeviceSupportPage />)
+    await screen.findByText('EXYNOS 7420')
+
+    // Start a lookup and leave it pending.
+    await userEvent.type(screen.getByRole('textbox', { name: 'SoC to look up' }), 'SM8750')
+    await userEvent.click(screen.getByRole('button', { name: 'Check' }))
+
+    // While it's still in flight, a mutation elsewhere invalidates the (not yet delivered) result.
+    await userEvent.click(screen.getByRole('button', { name: 'Change decision for EXYNOS 7420' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, save' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    // The stale lookup finally resolves -- it must not resurrect a pre-write result.
+    resolveLookup('exclude')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(screen.queryByText('SM8750')).toBeNull()
+  })
+
   it('ignores an earlier lookup response that resolves after a later one', async () => {
     let resolveFirst: (value: PublicDeviceDecision) => void = () => {}
     let resolveSecond: (value: PublicDeviceDecision) => void = () => {}
