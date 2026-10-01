@@ -70,8 +70,9 @@ jobs:
       # `package-name` is not passed: the root package.json is already
       # `@dcl-regenesislabs/mobile-hub`, which is what definitions binds to this repository.
       #
-      # zone alone, which is what the `set-rollout` workflow this replaces did on every main
-      # push. zone needs no GitHub environment claim, so this job declares no `environment:`.
+      # zone alone, which is what the `set-rollout` workflow this replaces did on every CDN
+      # upload -- releases as well as main pushes, since it listened on `deployment_status`.
+      # zone needs no GitHub environment claim, so this job declares no `environment:`.
       - uses: decentraland/actions/cdn-deploy@cdn-deploy-v1
         with:
           build-command: npm run build
