@@ -1,0 +1,166 @@
+name: CDN deploy
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: 'Environment to promote to'
+        required: true
+        default: 'zone'
+        # zone and org only. definitions gives @dcl-regenesislabs/mobile-hub
+        # decentraland.zone and decentraland.org, and the broker refuses a rollout to an
+        # environment outside the package's domains -- decentraland.today/mobile-hub is not
+        # this site, it falls through to the sites SPA.
+        options: [zone, org]
+      version:
+        description: 'Version to put live. org requires a release (e.g. 1.1.3); zone also takes a commit build (e.g. 1.1.4-36742454713.commit-2fcbfea — copy it from the deploy run you want).'
+        required: true
+      percentage:
+        description: 'Rollout percentage'
+        required: true
+        default: '100'
+
+jobs:
+  dev:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Scoped to pushes. The broker serialises the KV write itself -- it holds a lease per
+    # environment and record, and answers `rollout_in_progress` with a Retry-After that this
+    # action retries -- so a release or a promotion may run alongside this one. Sharing a
+    # single group across all three instead lets a queued release be cancelled outright by
+    # the next push, which deploys nothing and reports no failure.
+    #
+    # Within this group a newer commit does supersede a pending older one, which is the
+    # commit that should end up live.
+    concurrency:
+      group: cdn-deploy-${{ github.repository }}-push
+      cancel-in-progress: false
+    env:
+      # Job level, not step level: the build runs inside a composite action, and composite
+      # steps do not inherit `env:` from the step that calls them. This is what the `Build`
+      # step of the workflow this replaces set.
+      NODE_PATH: 'src'
+    permissions:
+      id-token: write
+      contents: read
+      deployments: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # Gates the deploy the way the `Test` step of the workflow this replaces did: it ran
+      # before `Publish`, so a failing suite stopped anything reaching the CDN.
+      - run: npm run test:coverage
+      # The build runs INSIDE the action, which is what keeps the version the bytes were
+      # built for and the prefix they are uploaded to the same value. scripts/prebuild.cjs
+      # derives VITE_BASE_URL -- which vite.config.ts uses as the build `base`, so it is the
+      # CDN path every asset is requested from -- from the version in package.json, which the
+      # action writes before the build starts. A build that runs before the version is settled
+      # emits HTML pointing at a prefix nothing was ever uploaded to.
+      #
+      # `package-name` is not passed: the root package.json is already
+      # `@dcl-regenesislabs/mobile-hub`, which is what definitions binds to this repository.
+      #
+      # zone alone, which is what the `set-rollout` workflow this replaces did on every CDN
+      # upload -- releases as well as main pushes, since it listened on `deployment_status`.
+      # zone needs no GitHub environment claim, so this job declares no `environment:`.
+      - uses: decentraland/actions/cdn-deploy@cdn-deploy-v1
+        with:
+          build-command: npm run build
+          dist-path: ./dist
+          deployment-environments: '["zone"]'
+
+  release:
+    # `release: published` fires for prereleases too. Without the guard an RC would publish
+    # like any other release.
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    # Keyed by tag: two releases published close together both deploy, rather than the
+    # pending one being cancelled when the second arrives.
+    concurrency:
+      group: cdn-deploy-${{ github.repository }}-release-${{ github.event.release.tag_name }}
+      cancel-in-progress: false
+    env:
+      NODE_PATH: 'src'
+    permissions:
+      id-token: write
+      contents: read
+      deployments: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:coverage
+      # Rebuilt rather than copied from the commit build: prebuild bakes VITE_BASE_URL from
+      # the version, so a copy of the commit build would serve /1.1.4/index.html asking for
+      # its assets from /1.1.4-<runId>.commit-<sha7>/. A release serves everything from its
+      # own path, which means building with the tag as the version -- which is what passing
+      # `version` alongside `build-command` does.
+      #
+      # zone alone, matching the push flow: production is promoted by hand, naming the
+      # version, from `promote` below.
+      - uses: decentraland/actions/cdn-deploy@cdn-deploy-v1
+        with:
+          build-command: npm run build
+          dist-path: ./dist
+          version: ${{ github.event.release.tag_name }}
+          deployment-environments: '["zone"]'
+
+  promote:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Keyed by environment: a promotion to zone must not queue behind one to org.
+    concurrency:
+      group: cdn-deploy-${{ github.repository }}-promote-${{ inputs.environment }}
+      cancel-in-progress: false
+    # Required: GitHub evaluates this before the job starts and only then issues the
+    # environment claim the broker checks for org.
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+      deployments: write
+      statuses: write
+    steps:
+      # No checkout: nothing is built and the bytes are already in S3, so the package name
+      # cannot be read from package.json, and there is no base version to compute a commit
+      # version from -- the action only demands one when it has to compute it.
+      #
+      # One dispatch is NOT a rollback. Records are stored sorted descending by semver and
+      # the worker serves the first one whose percentage covers the user, so EVERY version
+      # that sorts above the target has to be at 0% before the target is reached -- after a
+      # few pushes that is several commit builds, not one.
+      #
+      # The order matters, and only one order is safe. Restore the target to 100% FIRST:
+      # that is invisible to users, because a newer record still sorts ahead and keeps
+      # serving. Then zero the abandoned versions. Zeroing first leaves users whom no
+      # record covers, and `calculateRollout` skips records at 0% and falls back to the
+      # LAST one -- the oldest version still stored -- so a rollback done in that order can
+      # briefly serve something older than either version involved.
+      #
+      # One dispatch at a time, waiting for each run to finish. These share a concurrency
+      # group per environment, and a third dispatch queued behind a running one cancels the
+      # second while it is still pending -- which deploys nothing and reports no failure.
+      #
+      # A version published before this workflow existed has no `.deploy-complete.json`, and
+      # the broker refuses to point at a prefix whose upload it cannot confirm finished. Use
+      # `set-rollout-manual.yaml` for those; it writes KV through the older path, which does not check.
+      - uses: decentraland/actions/cdn-deploy@cdn-deploy-v1
+        with:
+          package-name: '@dcl-regenesislabs/mobile-hub'
+          version: ${{ inputs.version }}
+          deployment-environments: ${{ inputs.environment }}
+          percentage: ${{ inputs.percentage }}
