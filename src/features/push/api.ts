@@ -11,6 +11,13 @@ export type PushCampaignStatus =
   | 'cancelled'
   | 'failed'
 
+/** What kind of place a feed row's push opens; the campaign serving the slice owns the copy. */
+export type FeedDestinationKind = 'scene' | 'plaza' | 'discover'
+
+/** The lifecycle triggers the warehouse publishes: days since the install's first session. */
+export const FEED_TRIGGER_KEYS = ['d1', 'd3', 'd7', 'd15', 'd30'] as const
+export const FEED_DESTINATION_KINDS: readonly FeedDestinationKind[] = ['scene', 'plaza', 'discover']
+
 export interface PushCampaign {
   id: string
   campaignKey: string
@@ -22,6 +29,14 @@ export interface PushCampaign {
   status: PushCampaignStatus
   ttlSeconds: number
   scheduledAt: string | null
+  /**
+   * Filled by the warehouse feed instead of a CSV, and never finishes: a drained queue goes
+   * back to `scheduled` for the next ingest. `audienceCount` is then everyone ever queued.
+   */
+  isRecurring: boolean
+  /** The slice of the feed this campaign serves; both null for a hand-uploaded one. */
+  triggerKey: string | null
+  destinationKind: FeedDestinationKind | null
   audienceCount: number
   createdBy: string
   approvedBy: string | null
@@ -39,10 +54,20 @@ export interface PushCampaignInput {
   imageUrl: string | null
   ttlSeconds: number
   scheduledAt: string | null
+  /** Only on create. The server accepts the slice only together with `isRecurring`. */
+  isRecurring?: boolean
+  triggerKey?: string | null
+  destinationKind?: FeedDestinationKind | null
 }
 
-/** The key is assigned once; an edit sends only the content. */
-export type PushCampaignChanges = Omit<PushCampaignInput, 'campaignKey'>
+/**
+ * The key and the slice are assigned once; an edit sends only the content, and the server
+ * leaves what a campaign is fed by as it was.
+ */
+export type PushCampaignChanges = Omit<
+  PushCampaignInput,
+  'campaignKey' | 'isRecurring' | 'triggerKey' | 'destinationKind'
+>
 
 export interface AudienceReport {
   received: number
@@ -61,6 +86,27 @@ export interface CampaignStats {
   cancelled: number
   inFlight: number
   errors: Record<string, number>
+}
+
+/** What one read of the warehouse feed did. */
+export interface FeedSyncReport {
+  rowsRead: number
+  /** Rows the server refused, counted by reason. */
+  rejected: Record<string, number>
+  /** `trigger/kind` pairs the feed produced rows for that no campaign declares. */
+  unservedSlices: string[]
+  /** Pairs whose campaign exists but is not approved yet. */
+  notAcceptingSlices: string[]
+  queued: number
+  alreadyQueued: number
+  suppressed: number
+}
+
+/** One campaign's sends on one UTC day. */
+export interface DailySendRow {
+  day: string
+  campaignKey: string
+  sent: number
 }
 
 export interface TestSendResult {
@@ -219,4 +265,23 @@ export async function fetchPushCampaignStats(
     response,
     'Failed to load campaign stats'
   )
+}
+
+/**
+ * Read the warehouse feed now rather than at the next hourly pass. Sends nothing by itself:
+ * it only queues rows onto recurring campaigns a second person already approved, and the
+ * same read twice is a no-op. What it is for is the report.
+ */
+export async function syncPushFeed(authenticatedFetch: AuthenticatedFetch): Promise<FeedSyncReport> {
+  const response = await authenticatedFetch(`${API_BASE}/backoffice/push/feed/sync`, { method: 'POST' })
+  return unwrap<FeedSyncReport>(response, 'Failed to read the warehouse feed')
+}
+
+export async function fetchDailySends(
+  authenticatedFetch: AuthenticatedFetch,
+  days: number
+): Promise<DailySendRow[]> {
+  const response = await authenticatedFetch(`${API_BASE}/backoffice/push/stats/daily?days=${days}`)
+  const data = await unwrap<{ days: number; rows: DailySendRow[] }>(response, 'Failed to load sends per day')
+  return data.rows
 }
