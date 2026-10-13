@@ -33,7 +33,12 @@ export function emptyDraft(): CampaignFormDraft {
 export function draftToInput(draft: CampaignFormDraft): { input: CampaignInput } | { error: string } {
   const token = draft.token.trim()
   if (token.length === 0 || token.length > TOKEN_MAX_LENGTH || !TOKEN_REGEX.test(token)) {
-    return { error: "Token must be kebab-case, at most 64 characters (e.g. 'summer2022')" }
+    return {
+      error:
+        'Token must be kebab-case: lowercase letters, digits and single dashes, up to 64 ' +
+        "characters (e.g. 'aesir-online', 'summer-2026', 'launch2026'). No spaces, capitals, " +
+        'underscores or accents, and no dash at either end.',
+    }
   }
 
   if (draft.targetType === 'world') {

@@ -58,6 +58,21 @@ describe('CampaignsPage', () => {
     expect(screen.getByText('-9,-9')).toBeTruthy()
   })
 
+  // The link is the one artifact that leaves this page: it gets pasted into the ad group.
+  it('copies the deep link for a campaign', async () => {
+    const user = userEvent.setup()
+    render(<CampaignsPage />)
+    await screen.findByText('summer2022')
+
+    await user.click(screen.getByRole('button', { name: 'Copy deep link for summer2022' }))
+
+    expect(await navigator.clipboard.readText()).toBe('decentraland://open?c=summer2022')
+    expect(await screen.findByRole('button', { name: 'Copy deep link for summer2022' })).toHaveProperty(
+      'textContent',
+      'Copied'
+    )
+  })
+
   // A signed-out visitor must not be able to change what installs see.
   it('hides the editing affordances and does not call the backoffice when signed out', async () => {
     signedIn(false)

@@ -43,7 +43,9 @@
 
 .campaigns-header code,
 .campaigns-empty code,
-.campaign-row-target code {
+.campaign-row-target code,
+.campaign-row-deeplink code,
+.campaign-field-hint code {
   background: rgba(255, 255, 255, 0.08);
   padding: 2px 6px;
   border-radius: 4px;
@@ -314,4 +316,49 @@
 
 .campaigns-diff-delete {
   color: #ff6b6b;
+}
+
+.campaign-row-deeplink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  min-width: 0;
+}
+
+.campaign-row-deeplink code {
+  overflow-wrap: anywhere;
+}
+
+.campaign-copy-button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.campaign-copy-button:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.campaign-field > .campaign-field-hint {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.campaign-field-hint code {
+  font-size: 11px;
+  padding: 1px 4px;
+}
+
+.campaign-field-hint code.is-bad {
+  color: #ff6b6b;
+  background: rgba(255, 68, 68, 0.1);
+  text-decoration: line-through;
 }
