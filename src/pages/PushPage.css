@@ -332,3 +332,95 @@
   color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
 }
+
+/* Panels above the list: the warehouse feed and the sends per day. */
+.push-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.push-panel h2 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  margin: 0;
+}
+
+.push-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.push-panel .push-note {
+  margin: 6px 0 10px;
+}
+
+.push-daily table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.push-daily th,
+.push-daily td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.push-daily th {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.push-daily-total {
+  font-weight: 600;
+}
+
+.push-daily-breakdown {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* The slice a recurring campaign serves, next to its status. */
+.push-badge {
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(110, 193, 255, 0.12);
+  color: #6ec1ff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* A checkbox field reads as one line, with its explanation underneath. */
+.push-field-check {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.push-field-check input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+}
+
+.push-field-check small {
+  flex-basis: 100%;
+}
+
+.push-field select {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-family: inherit;
+}

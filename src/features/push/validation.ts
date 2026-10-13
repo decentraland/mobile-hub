@@ -1,4 +1,11 @@
-import type { PushCampaign, PushCampaignInput, PushCampaignStatus } from './api'
+import {
+  FEED_DESTINATION_KINDS,
+  FEED_TRIGGER_KEYS,
+  type FeedDestinationKind,
+  type PushCampaign,
+  type PushCampaignInput,
+  type PushCampaignStatus,
+} from './api'
 
 // Mirrors src/logic/push.ts in mobile-bff. The server is the authority — these exist so the
 // form can say what is wrong while somebody is typing, instead of after a round trip.
@@ -24,6 +31,10 @@ export interface PushFormDraft {
   imageUrl: string
   ttlHours: string
   scheduledAt: string
+  /** Filled by the warehouse feed rather than a CSV. Set once, on create, with its slice. */
+  isRecurring: boolean
+  triggerKey: string
+  destinationKind: string
 }
 
 export function emptyDraft(): PushFormDraft {
@@ -35,6 +46,9 @@ export function emptyDraft(): PushFormDraft {
     imageUrl: '',
     ttlHours: String(TTL_DEFAULT_SECONDS / 3600),
     scheduledAt: '',
+    isRecurring: false,
+    triggerKey: '',
+    destinationKind: '',
   }
 }
 
@@ -66,6 +80,9 @@ export function draftFromCampaign(campaign: PushCampaign): PushFormDraft {
     imageUrl: campaign.imageUrl ?? '',
     ttlHours: String(campaign.ttlSeconds / 3600),
     scheduledAt: campaign.scheduledAt ? toLocalInputValue(campaign.scheduledAt) : '',
+    isRecurring: campaign.isRecurring,
+    triggerKey: campaign.triggerKey ?? '',
+    destinationKind: campaign.destinationKind ?? '',
   }
 }
 
@@ -129,6 +146,17 @@ export function validateDraft(draft: PushFormDraft, options: { isNew: boolean })
     errors.scheduledAt = 'Not a valid date'
   }
 
+  // A recurring campaign without a slice would never be filled by anything. The server only
+  // takes the pair together with `isRecurring`, so the three are one decision here too.
+  if (draft.isRecurring) {
+    if (!(FEED_TRIGGER_KEYS as readonly string[]).includes(draft.triggerKey)) {
+      errors.triggerKey = 'Pick the trigger this campaign serves'
+    }
+    if (!(FEED_DESTINATION_KINDS as readonly string[]).includes(draft.destinationKind)) {
+      errors.destinationKind = 'Pick the kind of destination this campaign serves'
+    }
+  }
+
   return errors
 }
 
@@ -141,6 +169,15 @@ export function draftToInput(draft: PushFormDraft): PushCampaignInput {
     imageUrl: draft.imageUrl.trim() || null,
     ttlSeconds: Math.round(Number(draft.ttlHours) * 3600),
     scheduledAt: draft.scheduledAt ? fromLocalInputValue(draft.scheduledAt) : null,
+    // Left out for a one-shot campaign: absent means "not recurring, no slice" on the server,
+    // and an edit never carries these at all.
+    ...(draft.isRecurring
+      ? {
+          isRecurring: true,
+          triggerKey: draft.triggerKey,
+          destinationKind: draft.destinationKind as FeedDestinationKind,
+        }
+      : {}),
   }
 }
 
@@ -209,14 +246,17 @@ export function permissionsFor(
   let approveBlockedReason: string | null = null
   if (pending && isCreator) {
     approveBlockedReason = 'A campaign must be approved by someone else'
-  } else if (pending && campaign.audienceCount === 0) {
+  } else if (pending && campaign.audienceCount === 0 && !campaign.isRecurring) {
     approveBlockedReason = 'This campaign reaches nobody — upload an audience first'
   }
 
   return {
     canEdit: campaign.status === 'draft',
-    canUploadAudience: campaign.status === 'draft' || pending,
-    canSubmit: campaign.status === 'draft' && campaign.audienceCount > 0,
+    // A CSV replaces the queue, which on a recurring campaign is what the feed put there.
+    canUploadAudience: !campaign.isRecurring && (campaign.status === 'draft' || pending),
+    // A recurring campaign is submitted empty on purpose: approval is what opens it to the
+    // feed, so asking for an audience first would be a deadlock.
+    canSubmit: campaign.status === 'draft' && (campaign.audienceCount > 0 || campaign.isRecurring),
     canApprove: pending && approveBlockedReason === null,
     approveBlockedReason,
     canCancel: ['draft', 'pending_approval', 'scheduled', 'sending'].includes(campaign.status),
@@ -235,4 +275,12 @@ const STATUS_LABELS: Record<PushCampaignStatus, string> = {
 
 export function statusLabel(status: PushCampaignStatus): string {
   return STATUS_LABELS[status] ?? status
+}
+
+/** The slice a recurring campaign serves, as `d3/scene` — the way the sync report names it. */
+export function sliceLabel(campaign: PushCampaign): string | null {
+  if (!campaign.isRecurring) {
+    return null
+  }
+  return `${campaign.triggerKey ?? '?'}/${campaign.destinationKind ?? '?'}`
 }

@@ -4,6 +4,8 @@ import {
   createPushCampaign,
   uploadPushAudience,
   testSendPushCampaign,
+  syncPushFeed,
+  fetchDailySends,
   type PushCampaign,
 } from './api'
 
@@ -22,6 +24,9 @@ const CAMPAIGN: PushCampaign = {
   status: 'draft',
   ttlSeconds: 86400,
   scheduledAt: null,
+  isRecurring: false,
+  triggerKey: null,
+  destinationKind: null,
   audienceCount: 0,
   createdBy: '0xaaa',
   approvedBy: null,
@@ -92,5 +97,31 @@ describe('push api', () => {
     // An empty array, not an omitted field: the server falls back to its configured list.
     const [, init] = authenticatedFetch.mock.calls[0]
     expect(JSON.parse(init.body)).toEqual({ tokens: [] })
+  })
+
+  it('reads the feed with a POST and hands back the report as it came', async () => {
+    const report = {
+      rowsRead: 3,
+      rejected: { push_token: 1 },
+      unservedSlices: ['d7/plaza'],
+      notAcceptingSlices: [],
+      queued: 1,
+      alreadyQueued: 1,
+      suppressed: 0,
+    }
+    authenticatedFetch.mockResolvedValue(jsonResponse({ ok: true, data: report }))
+
+    expect(await syncPushFeed(authenticatedFetch)).toEqual(report)
+    const [url, init] = authenticatedFetch.mock.calls[0]
+    expect(url).toMatch(/\/backoffice\/push\/feed\/sync$/)
+    expect(init.method).toBe('POST')
+  })
+
+  it('asks for the window of days it was given and keeps only the rows', async () => {
+    const rows = [{ day: '2026-10-13', campaignKey: 'd3-comeback', sent: 40 }]
+    authenticatedFetch.mockResolvedValue(jsonResponse({ ok: true, data: { days: 14, rows } }))
+
+    expect(await fetchDailySends(authenticatedFetch, 14)).toEqual(rows)
+    expect(authenticatedFetch.mock.calls[0][0]).toMatch(/\/backoffice\/push\/stats\/daily\?days=14$/)
   })
 })

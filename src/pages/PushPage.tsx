@@ -12,10 +12,16 @@ import {
   approvePushCampaign,
   cancelPushCampaign,
   fetchPushCampaignStats,
+  syncPushFeed,
+  fetchDailySends,
+  FEED_DESTINATION_KINDS,
+  FEED_TRIGGER_KEYS,
   type PushCampaign,
   type AudienceReport,
   type CampaignStats,
   type TestSendResult,
+  type FeedSyncReport,
+  type DailySendRow,
 } from '../features/push/api'
 import {
   emptyDraft,
@@ -25,12 +31,27 @@ import {
   validateDraft,
   permissionsFor,
   statusLabel,
+  sliceLabel,
   type PushFormDraft,
 } from '../features/push/validation'
 import { NotificationPreview } from '../features/push/components/NotificationPreview'
 import './PushPage.css'
 
 type Busy = { id: string; action: string } | null
+
+/** Enough to see a week against the one before it, without the table outgrowing the screen. */
+const DAILY_DAYS = 14
+
+/** Newest day first, each with its campaigns in the order the server gave them. */
+function groupByDay(rows: DailySendRow[]): { day: string; total: number; rows: DailySendRow[] }[] {
+  const byDay = new Map<string, DailySendRow[]>()
+  for (const row of rows) {
+    byDay.set(row.day, [...(byDay.get(row.day) ?? []), row])
+  }
+  return [...byDay.entries()]
+    .sort(([a], [b]) => (a < b ? 1 : -1))
+    .map(([day, dayRows]) => ({ day, rows: dayRows, total: dayRows.reduce((sum, r) => sum + r.sent, 0) }))
+}
 
 export const PushPage: FC = () => {
   const authenticatedFetch = useAuthenticatedFetch()
@@ -52,6 +73,10 @@ export const PushPage: FC = () => {
   const [testResults, setTestResults] = useState<TestSendResult[] | null>(null)
   const [testTokens, setTestTokens] = useState('')
 
+  const [feedReport, setFeedReport] = useState<FeedSyncReport | null>(null)
+  const [daily, setDaily] = useState<DailySendRow[] | null>(null)
+  const [dailyError, setDailyError] = useState<string | null>(null)
+
   const load = useCallback(async () => {
     setIsLoading(true)
     setLoadError(null)
@@ -64,13 +89,25 @@ export const PushPage: FC = () => {
     }
   }, [authenticatedFetch])
 
+  // Its own request and its own error: the campaigns stay usable when this panel cannot load,
+  // which is what happens against a server that does not serve it yet.
+  const loadDaily = useCallback(async () => {
+    try {
+      setDaily(await fetchDailySends(authenticatedFetch, DAILY_DAYS))
+      setDailyError(null)
+    } catch (err) {
+      setDailyError(err instanceof Error ? err.message : 'Failed to load sends per day')
+    }
+  }, [authenticatedFetch])
+
   useEffect(() => {
     if (!canEdit) {
       setIsLoading(false)
       return
     }
     load()
-  }, [canEdit, load])
+    loadDaily()
+  }, [canEdit, load, loadDaily])
 
   const replace = (updated: PushCampaign) =>
     setCampaigns(prev => (prev ? prev.map(c => (c.id === updated.id ? updated : c)) : prev))
@@ -135,6 +172,15 @@ export const PushPage: FC = () => {
     }
   }
 
+  const handleSync = async () => {
+    const report = await run('feed', 'read the warehouse feed', () => syncPushFeed(authenticatedFetch))
+    if (report) {
+      setFeedReport(report)
+      // Whatever it queued changed the counts in the list.
+      await load()
+    }
+  }
+
   const openDetail = async (campaign: PushCampaign) => {
     setSelectedId(campaign.id)
     setAudienceReport(null)
@@ -158,6 +204,8 @@ export const PushPage: FC = () => {
     )
   }
 
+  const dailyByDay = daily ? groupByDay(daily) : []
+
   return (
     <div className="push-page">
       <div className="push-container">
@@ -177,8 +225,10 @@ export const PushPage: FC = () => {
             )}
           </div>
           <p>
-            Android only. Devices register through the app; the audience is resolved in the
-            warehouse and uploaded here as a <code>user_id,fcm_token</code> CSV.
+            Devices register through the app. A one-shot campaign takes an audience resolved in
+            the warehouse and uploaded here as a <code>user_id,token[,platform]</code> CSV. A
+            recurring campaign declares which slice of the warehouse's lifecycle feed it serves,
+            and the feed fills it on its own.
           </p>
           <p className="push-note">
             A campaign has to be approved by someone other than whoever created it, and nothing
@@ -188,6 +238,76 @@ export const PushPage: FC = () => {
 
         {loadError && <div className="push-error">{loadError}</div>}
         {actionError && <div className="push-error">{actionError}</div>}
+
+        <section className="push-panel push-feed">
+          <div className="push-panel-row">
+            <h2>Warehouse feed</h2>
+            <button className="push-button-secondary" disabled={busy?.id === 'feed'} onClick={handleSync}>
+              Sync feed now
+            </button>
+          </div>
+          <p className="push-note">
+            Read every hour on its own. Queues each install's row onto the approved recurring
+            campaign for its slice; sends nothing by itself, and the same read twice is a no-op.
+          </p>
+          {feedReport && (
+            <div className="push-report">
+              <strong>
+                {feedReport.rowsRead.toLocaleString()} rows read · {feedReport.queued.toLocaleString()}{' '}
+                queued · {feedReport.alreadyQueued.toLocaleString()} already queued ·{' '}
+                {feedReport.suppressed.toLocaleString()} suppressed
+              </strong>
+              {feedReport.unservedSlices.length > 0 && (
+                <div className="push-report-bad">
+                  No campaign serves: {feedReport.unservedSlices.join(', ')}
+                </div>
+              )}
+              {feedReport.notAcceptingSlices.length > 0 && (
+                <div className="push-report-bad">
+                  Not approved yet: {feedReport.notAcceptingSlices.join(', ')}
+                </div>
+              )}
+              {Object.entries(feedReport.rejected).map(([reason, count]) => (
+                <div className="push-report-bad" key={reason}>
+                  {count.toLocaleString()} rows rejected: {reason}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="push-panel push-daily">
+          <h2>Sent per day</h2>
+          <p className="push-note">
+            Last {DAILY_DAYS} days, UTC. Send-log numbers, not opens.
+          </p>
+          {dailyError && <div className="push-note">Not available: {dailyError}</div>}
+          {daily && dailyByDay.length === 0 && !dailyError && (
+            <div className="push-note">Nothing sent in the last {DAILY_DAYS} days.</div>
+          )}
+          {dailyByDay.length > 0 && (
+            <table>
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Sent</th>
+                  <th>By campaign</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dailyByDay.map(({ day, total, rows }) => (
+                  <tr key={day}>
+                    <td>{day}</td>
+                    <td className="push-daily-total">{total.toLocaleString()}</td>
+                    <td className="push-daily-breakdown">
+                      {rows.map(row => `${row.campaignKey} ${row.sent.toLocaleString()}`).join(' · ')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
 
         {draft && (
           <section className="push-form-section">
@@ -208,6 +328,72 @@ export const PushPage: FC = () => {
                   </small>
                   {errors.campaignKey && <em className="push-field-error">{errors.campaignKey}</em>}
                 </label>
+              )}
+
+              {!editingId && (
+                <label className="push-field push-field-check">
+                  <input
+                    type="checkbox"
+                    checked={draft.isRecurring}
+                    onChange={e => setDraft({ ...draft, isRecurring: e.target.checked })}
+                  />
+                  <span>Recurring, filled by the warehouse feed</span>
+                  <small>
+                    Approved empty. The feed queues each install's row with its own destination
+                    and its own local send time, and the campaign never finishes. Cannot be
+                    changed later.
+                  </small>
+                </label>
+              )}
+
+              {!editingId && draft.isRecurring && (
+                <div className="push-field-row">
+                  <label className="push-field">
+                    <span>Trigger</span>
+                    <select
+                      value={draft.triggerKey}
+                      onChange={e => setDraft({ ...draft, triggerKey: e.target.value })}
+                    >
+                      <option value="">—</option>
+                      {FEED_TRIGGER_KEYS.map(key => (
+                        <option key={key} value={key}>
+                          {key}
+                        </option>
+                      ))}
+                    </select>
+                    <small>Days since the install's first session.</small>
+                    {errors.triggerKey && <em className="push-field-error">{errors.triggerKey}</em>}
+                  </label>
+
+                  <label className="push-field">
+                    <span>Destination</span>
+                    <select
+                      value={draft.destinationKind}
+                      onChange={e => setDraft({ ...draft, destinationKind: e.target.value })}
+                    >
+                      <option value="">—</option>
+                      {FEED_DESTINATION_KINDS.map(kind => (
+                        <option key={kind} value={kind}>
+                          {kind}
+                        </option>
+                      ))}
+                    </select>
+                    <small>
+                      scene: back to where the install played; the deep link below is only the
+                      fallback. plaza and discover: the deep link below is the destination.
+                    </small>
+                    {errors.destinationKind && (
+                      <em className="push-field-error">{errors.destinationKind}</em>
+                    )}
+                  </label>
+                </div>
+              )}
+
+              {editingId && draft.isRecurring && (
+                <p className="push-note">
+                  Recurring, serving <code>{draft.triggerKey}/{draft.destinationKind}</code>. The
+                  slice is set once; cancel and create a new campaign to change it.
+                </p>
               )}
 
               <label className="push-field">
@@ -301,6 +487,7 @@ export const PushPage: FC = () => {
             const permissions = permissionsFor(campaign, wallet)
             const isSelected = campaign.id === selectedId
             const isBusy = busy?.id === campaign.id
+            const slice = sliceLabel(campaign)
 
             return (
               <div className={`push-row ${isSelected ? 'push-row-selected' : ''}`} key={campaign.id}>
@@ -310,10 +497,12 @@ export const PushPage: FC = () => {
                     <span className={`push-status push-status-${campaign.status}`}>
                       {statusLabel(campaign.status)}
                     </span>
+                    {slice && <span className="push-badge">recurring · {slice}</span>}
                   </div>
                   <div className="push-row-title">{campaign.title}</div>
                   <div className="push-row-meta">
-                    {campaign.audienceCount.toLocaleString()} recipients
+                    {campaign.audienceCount.toLocaleString()}{' '}
+                    {campaign.isRecurring ? 'queued so far' : 'recipients'}
                     {campaign.scheduledAt && ` · sends ${new Date(campaign.scheduledAt).toLocaleString()}`}
                   </div>
                 </div>
@@ -419,6 +608,14 @@ export const PushPage: FC = () => {
                       <div className="push-warning">{permissions.approveBlockedReason}.</div>
                     )}
 
+                    {campaign.isRecurring && (
+                      <div className="push-note">
+                        Filled by the warehouse feed for <code>{slice}</code>. Each row is sent at
+                        its install's own evening; a drained queue means idle, not finished. To
+                        change the copy, cancel and create a new campaign for the same slice.
+                      </div>
+                    )}
+
                     <div className="push-detail-grid">
                       <div>
                         <span>Created by</span>
@@ -431,13 +628,13 @@ export const PushPage: FC = () => {
                         </div>
                       )}
                       <div>
-                        <span>Deep link</span>
+                        <span>{campaign.destinationKind === 'scene' ? 'Fallback deep link' : 'Deep link'}</span>
                         <code>{campaign.deepLink}</code>
                       </div>
                     </div>
 
                     <label className="push-field">
-                      <span>Test recipients (FCM tokens, optional)</span>
+                      <span>Test recipients (device tokens, optional)</span>
                       <input
                         value={testTokens}
                         placeholder="Leave empty to use the configured team devices"
@@ -449,7 +646,7 @@ export const PushPage: FC = () => {
                       <div className="push-report">
                         {testResults.map((result, index) => (
                           <div key={index} className={result.ok ? 'push-report-ok' : 'push-report-bad'}>
-                            {result.ok ? 'Delivered to FCM' : `Failed: ${result.errorCode}`}
+                            {result.ok ? 'Delivered to the provider' : `Failed: ${result.errorCode}`}
                           </div>
                         ))}
                       </div>

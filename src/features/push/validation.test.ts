@@ -56,6 +56,21 @@ describe('validateDraft', () => {
     expect(validateDraft(draft({ ttlHours: '672' }), { isNew: true }).ttlHours).toBeUndefined()
   })
 
+  it('makes a recurring campaign say which slice it serves', () => {
+    const recurring = draft({ isRecurring: true })
+    expect(validateDraft(recurring, { isNew: true })).toMatchObject({
+      triggerKey: expect.stringMatching(/trigger/),
+      destinationKind: expect.stringMatching(/destination/),
+    })
+    expect(validateDraft({ ...recurring, triggerKey: 'd3', destinationKind: 'scene' }, { isNew: true })).toEqual({})
+    // Not a trigger the warehouse publishes.
+    expect(validateDraft({ ...recurring, triggerKey: 'd2', destinationKind: 'scene' }, { isNew: true })).toHaveProperty(
+      'triggerKey'
+    )
+    // A one-shot draft carries no slice and is not asked for one.
+    expect(validateDraft(draft(), { isNew: true })).toEqual({})
+  })
+
   it('only demands a campaign key when the campaign is new', () => {
     expect(validateDraft(draft({ campaignKey: 'Not Kebab' }), { isNew: true }).campaignKey).toBeTruthy()
     // Editing cannot change the key, so a stored one is never re-validated.
@@ -64,6 +79,15 @@ describe('validateDraft', () => {
 })
 
 describe('draftToInput', () => {
+  it('sends the slice only for a recurring campaign', () => {
+    expect(draftToInput(draft())).not.toHaveProperty('isRecurring')
+    expect(draftToInput(draft({ isRecurring: true, triggerKey: 'd3', destinationKind: 'scene' }))).toMatchObject({
+      isRecurring: true,
+      triggerKey: 'd3',
+      destinationKind: 'scene',
+    })
+  })
+
   it('converts the units the form uses into the ones the API takes', () => {
     const input = draftToInput(draft({ ttlHours: '12', imageUrl: '  ' }))
 
@@ -146,6 +170,9 @@ describe('permissionsFor', () => {
       status: 'draft',
       ttlSeconds: 86400,
       scheduledAt: null,
+      isRecurring: false,
+      triggerKey: null,
+      destinationKind: null,
       audienceCount: 0,
       createdBy: CREATOR.toLowerCase(),
       approvedBy: null,
@@ -176,6 +203,22 @@ describe('permissionsFor', () => {
   it('will not offer submit before there is anyone to send to', () => {
     expect(permissionsFor(campaign({ audienceCount: 0 }), CREATOR).canSubmit).toBe(false)
     expect(permissionsFor(campaign({ audienceCount: 1 }), CREATOR).canSubmit).toBe(true)
+  })
+
+  // A recurring campaign is empty until the feed fills it, and the feed only fills a campaign
+  // a second person approved — so the audience gates have to step aside, or nothing ever
+  // reaches the feed. The CSV steps aside too: it would replace what the feed queued.
+  it('lets a recurring campaign through submit and approval empty, and keeps the CSV away', () => {
+    const recurring = { isRecurring: true, triggerKey: 'd3', destinationKind: 'scene' as const }
+
+    expect(permissionsFor(campaign({ ...recurring, audienceCount: 0 }), CREATOR).canSubmit).toBe(true)
+    expect(permissionsFor(campaign({ ...recurring, audienceCount: 0 }), CREATOR).canUploadAudience).toBe(false)
+
+    const pending = campaign({ ...recurring, status: 'pending_approval', audienceCount: 0 })
+    expect(permissionsFor(pending, OTHER).canApprove).toBe(true)
+    expect(permissionsFor(pending, OTHER).approveBlockedReason).toBeNull()
+    // The two-man rule does not step aside.
+    expect(permissionsFor(pending, CREATOR).canApprove).toBe(false)
   })
 
   it('freezes content and audience once a campaign leaves draft', () => {
