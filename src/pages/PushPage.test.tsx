@@ -155,6 +155,39 @@ describe('PushPage', () => {
     expect(screen.getByText(/line 3: empty user_id/)).toBeTruthy()
   })
 
+  // Edit is gone the moment a campaign is submitted, so whoever approves it can only read the
+  // copy here. A body nobody could read before approving is a body nobody reviewed.
+  it('shows the approver everything the device will show', async () => {
+    signedInAs(APPROVER)
+    const scheduledAt = '2026-03-01T19:00:00.000Z'
+    mockFetch.mockResolvedValue([
+      { ...PENDING, imageUrl: 'https://cdn.example/banner.png', ttlSeconds: 172800, scheduledAt },
+    ])
+
+    render(<PushPage />)
+    await userEvent.click(await screen.findByText('spring-event'))
+
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    // Once as the field, once in the preview.
+    expect(await screen.findAllByText('Something is happening')).toHaveLength(2)
+    expect(screen.getByText('https://cdn.example/banner.png')).toBeTruthy()
+    expect(screen.getByText('48 hours')).toBeTruthy()
+    expect(screen.getByText(new Date(scheduledAt).toLocaleString())).toBeTruthy()
+    expect(screen.getByText('decentraland://open?position=0,0')).toBeTruthy()
+  })
+
+  it('tells the approver a recurring campaign sends on each install\'s own schedule', async () => {
+    signedInAs(APPROVER)
+    mockFetch.mockResolvedValue([RECURRING])
+
+    render(<PushPage />)
+    await userEvent.click(await screen.findByText('d3-comeback'))
+
+    expect(await screen.findByText(/Each install's own local evening/)).toBeTruthy()
+    expect(screen.getByText('Fallback deep link')).toBeTruthy()
+    expect(screen.getByText('None')).toBeTruthy()
+  })
+
   it('says send-log numbers are not opens', async () => {
     signedInAs(APPROVER)
 

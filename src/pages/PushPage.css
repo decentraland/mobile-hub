@@ -295,6 +295,45 @@
   word-break: break-all;
 }
 
+/* The review: every field read back beside the preview, the way the form shows them while
+   typing. The approver only ever sees a campaign here. */
+.push-detail-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .push-detail-review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.push-detail-grid .push-detail-wide {
+  grid-column: 1 / -1;
+}
+
+.push-detail-grid strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Verbatim, line breaks included: a body is judged as written, not as the row summarises it. */
+.push-detail-grid p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.push-detail-grid em {
+  color: rgba(255, 255, 255, 0.45);
+  font-style: normal;
+}
+
 .push-report {
   background: rgba(0, 0, 0, 0.25);
   border-radius: 8px;
