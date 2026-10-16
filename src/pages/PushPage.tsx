@@ -42,6 +42,19 @@ type Busy = { id: string; action: string } | null
 /** Enough to see a week against the one before it, without the table outgrowing the screen. */
 const DAILY_DAYS = 14
 
+/** `172800` reads as nothing; "48 hours" is what the form asked for. */
+function ttlLabel(ttlSeconds: number): string {
+  const hours = Math.round((ttlSeconds / 3600) * 10) / 10
+  return `${hours} ${hours === 1 ? 'hour' : 'hours'}`
+}
+
+/** When it goes out, in the operator's own words rather than a nullable timestamp. */
+function sendAtLabel(campaign: PushCampaign): string {
+  if (campaign.isRecurring) return "Each install's own local evening, as the feed queues it"
+  if (campaign.scheduledAt) return new Date(campaign.scheduledAt).toLocaleString()
+  return 'As soon as it is approved'
+}
+
 /** Newest day first, each with its campaigns in the order the server gave them. */
 function groupByDay(rows: DailySendRow[]): { day: string; total: number; rows: DailySendRow[] }[] {
   const byDay = new Map<string, DailySendRow[]>()
@@ -616,21 +629,52 @@ export const PushPage: FC = () => {
                       </div>
                     )}
 
-                    <div className="push-detail-grid">
-                      <div>
-                        <span>Created by</span>
-                        <code>{campaign.createdBy}</code>
-                      </div>
-                      {campaign.approvedBy && (
-                        <div>
-                          <span>Approved by</span>
-                          <code>{campaign.approvedBy}</code>
+                    {/* Everything the form took, read back next to what the device will show.
+                        Edit disappears the moment a campaign is submitted, so the person who
+                        approves it has no other way to read the body they are signing off on. */}
+                    <div className="push-detail-review">
+                      <div className="push-detail-grid">
+                        <div className="push-detail-wide">
+                          <span>Title</span>
+                          <strong>{campaign.title}</strong>
                         </div>
-                      )}
-                      <div>
-                        <span>{campaign.destinationKind === 'scene' ? 'Fallback deep link' : 'Deep link'}</span>
-                        <code>{campaign.deepLink}</code>
+                        <div className="push-detail-wide">
+                          <span>Body</span>
+                          <p>{campaign.body}</p>
+                        </div>
+                        <div>
+                          <span>{campaign.destinationKind === 'scene' ? 'Fallback deep link' : 'Deep link'}</span>
+                          <code>{campaign.deepLink}</code>
+                        </div>
+                        <div>
+                          <span>Image</span>
+                          {campaign.imageUrl ? <code>{campaign.imageUrl}</code> : <em>None</em>}
+                        </div>
+                        <div>
+                          <span>Expires after</span>
+                          <strong>{ttlLabel(campaign.ttlSeconds)}</strong>
+                        </div>
+                        <div>
+                          <span>Send at</span>
+                          <strong>{sendAtLabel(campaign)}</strong>
+                        </div>
+                        <div>
+                          <span>Created by</span>
+                          <code>{campaign.createdBy}</code>
+                        </div>
+                        {campaign.approvedBy && (
+                          <div>
+                            <span>Approved by</span>
+                            <code>{campaign.approvedBy}</code>
+                          </div>
+                        )}
                       </div>
+
+                      <NotificationPreview
+                        title={campaign.title}
+                        body={campaign.body}
+                        imageUrl={campaign.imageUrl ?? ''}
+                      />
                     </div>
 
                     <label className="push-field">
