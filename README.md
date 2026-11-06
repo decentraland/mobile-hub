@@ -123,6 +123,16 @@ Set `VITE_REACT_APP_DCL_DEFAULT_ENV` to control the environment:
 - `dev` - Development (uses decentraland.zone)
 - `prd` - Production (uses decentraland.org)
 
+`VITE_CREATOR_FUND_API_URL` points a source build at a local [creators-data](https://github.com/decentraland/creators-data) for the Creator Fund tab (for example `http://localhost:8788`); a release build ignores it.
+
+## Creator Fund
+
+The **Creator Fund** tab is the backoffice for creators-data's `/v3/creator-fund/admin/*`: cycles, terms, news, enrolled creators (with CSV export, suspension and exclusion), place exclusions per cycle snapshot, and a sweep on demand. The tab appears only when `GET /admin/me` answers 200 for the signed-in wallet, which the service decides from its own admin list; anyone else gets a 403 and no tab. Every write asks for confirmation, is signed with `hashPayload` over the body, and is recorded by the service with the admin's wallet.
+
+On localhost the dev identity signs the requests, so that wallet (`0xf39F…2266`) has to be on the local service's admin list.
+
+creators-data has a single deployment, `creators-data.decentraland.zone`, so the production hub is the one that talks to it (`prd.json`) and the dev hub leaves `CREATOR_FUND_API_URL` empty, which hides the tab and sends nothing. A source build with `VITE_CREATOR_FUND_API_URL` set still gets the tab.
+
 ---
 
 ## API Integration

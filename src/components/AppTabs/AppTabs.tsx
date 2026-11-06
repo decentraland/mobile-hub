@@ -10,13 +10,16 @@ export type AppView =
   | 'devices'
   | 'campaigns'
   | 'push'
+  | 'creator-fund'
 
 interface AppTabsProps {
   activeView: AppView
   onViewChange: (view: AppView) => void
+  /** Only a wallet the creators-data service lists as a Creator Fund admin gets the tab. */
+  showCreatorFund?: boolean
 }
 
-export const AppTabs: FC<AppTabsProps> = ({ activeView, onViewChange }) => {
+export const AppTabs: FC<AppTabsProps> = ({ activeView, onViewChange, showCreatorFund = false }) => {
   return (
     <div className="app-tabs">
       <button
@@ -67,6 +70,14 @@ export const AppTabs: FC<AppTabsProps> = ({ activeView, onViewChange }) => {
       >
         Push
       </button>
+      {showCreatorFund && (
+        <button
+          className={`app-tab ${activeView === 'creator-fund' ? 'app-tab-active' : ''}`}
+          onClick={() => onViewChange('creator-fund')}
+        >
+          Creator Fund
+        </button>
+      )}
     </div>
   )
 }

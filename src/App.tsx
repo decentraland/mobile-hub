@@ -13,6 +13,8 @@ import { FeatureFlagsPage } from './pages/FeatureFlagsPage'
 import { DeviceSupportPage } from './pages/DeviceSupportPage'
 import { CampaignsPage } from './pages/CampaignsPage'
 import { PushPage } from './pages/PushPage'
+import { CreatorFundPage } from './pages/CreatorFundPage'
+import { useIsCreatorFundAdmin } from './features/creator-fund/useIsCreatorFundAdmin'
 import { config } from './config'
 
 const authConfig = {
@@ -22,25 +24,40 @@ const authConfig = {
 }
 const basename = /^decentraland.(zone|org|today)$/.test(window.location.host) ? '/mobile-hub' : '/'
 
-function App() {
+// Below the providers, so the admin gate can read the auth context.
+function Hub() {
   const [activeView, setActiveView] = useState<AppView>('map')
+  const isCreatorFundAdmin = useIsCreatorFundAdmin()
 
+  return (
+    <BansProvider>
+      <Navbar
+        tabs={
+          <AppTabs
+            activeView={activeView}
+            onViewChange={setActiveView}
+            showCreatorFund={isCreatorFundAdmin}
+          />
+        }
+      />
+      {activeView === 'map' && <MapPage />}
+      {activeView === 'worlds' && <WorldsPage />}
+      {activeView === 'curation' && <CurationPage />}
+      {activeView === 'versions' && <VersionsPage />}
+      {activeView === 'flags' && <FeatureFlagsPage />}
+      {activeView === 'devices' && <DeviceSupportPage />}
+      {activeView === 'campaigns' && <CampaignsPage />}
+      {activeView === 'push' && <PushPage />}
+      {activeView === 'creator-fund' && isCreatorFundAdmin && <CreatorFundPage />}
+    </BansProvider>
+  )
+}
+
+function App() {
   return (
     <BrowserRouter basename={basename}>
       <AuthProvider config={authConfig}>
-        <BansProvider>
-          <Navbar
-            tabs={<AppTabs activeView={activeView} onViewChange={setActiveView} />}
-          />
-          {activeView === 'map' && <MapPage />}
-          {activeView === 'worlds' && <WorldsPage />}
-          {activeView === 'curation' && <CurationPage />}
-          {activeView === 'versions' && <VersionsPage />}
-          {activeView === 'flags' && <FeatureFlagsPage />}
-          {activeView === 'devices' && <DeviceSupportPage />}
-          {activeView === 'campaigns' && <CampaignsPage />}
-          {activeView === 'push' && <PushPage />}
-        </BansProvider>
+        <Hub />
       </AuthProvider>
     </BrowserRouter>
   )
