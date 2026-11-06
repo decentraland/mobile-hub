@@ -956,7 +956,10 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
   if (cycles.length === 0) return null
 
   return (
-    <Section title="Cycle snapshot" hint="Every creator's places as the sweep recorded them. Exclude a place from its row.">
+    <Section
+      title={places ? `Cycle snapshot (${places.length} place${places.length === 1 ? '' : 's'})` : 'Cycle snapshot'}
+      hint="Every owned place as the join and the sweep recorded it. Collaborator places never earn, so they are not here. Exclude a place from its row."
+    >
       <div className="cf-toolbar">
         <select aria-label="Snapshot cycle" value={cycleId ?? ''} onChange={e => setCycleId(Number(e.target.value))}>
           {cycles.map(cycle => (
@@ -1053,6 +1056,18 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
 
 /* ---------------------------------- sweep ---------------------------------- */
 
+/** The sweep reports what it changed, not how many places exist; a quiet run reads as a quiet run. */
+function describeSweep(result: SweepResult): string {
+  if (result.status === 'skipped') {
+    return `Skipped: ${result.reason === 'locked' ? 'another run holds the lock' : 'no cycle is running'}`
+  }
+  const changes = result.inserted + result.updated + result.removed
+  if (changes === 0 && result.failures === 0) {
+    return `Checked ${result.creators} creator${result.creators === 1 ? '' : 's'}: the snapshot already matched, nothing to change. The places themselves are in the cycle snapshot above.`
+  }
+  return `Checked ${result.creators} creator${result.creators === 1 ? '' : 's'}: ${result.inserted} place${result.inserted === 1 ? '' : 's'} added, ${result.updated} updated, ${result.removed} removed${result.failures ? `, ${result.failures} creator${result.failures === 1 ? '' : 's'} could not be checked` : ''}.`
+}
+
 const SweepSection: FC<SectionProps> = ({ authenticatedFetch, ask }) => {
   const [result, setResult] = useState<SweepResult | null>(null)
 
@@ -1078,15 +1093,7 @@ const SweepSection: FC<SectionProps> = ({ authenticatedFetch, ask }) => {
         </button>
       }
     >
-      {result ? (
-        <p className="cf-muted">
-          {result.status === 'skipped'
-            ? `Skipped: ${result.reason === 'locked' ? 'another run holds the lock' : 'no cycle is running'}`
-            : `Swept ${result.creators} creators: ${result.inserted} new, ${result.updated} updated, ${result.removed} removed, ${result.failures} failed`}
-        </p>
-      ) : (
-        <p className="cf-muted">No run from this page yet.</p>
-      )}
+      {result ? <p className="cf-muted">{describeSweep(result)}</p> : <p className="cf-muted">No run from this page yet.</p>}
     </Section>
   )
 }
