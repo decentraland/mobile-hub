@@ -28,6 +28,7 @@ import {
   type SweepResult,
   type Terms,
 } from '../features/creator-fund/api'
+import { creatorsToCsv } from '../features/creator-fund/csv'
 import './CreatorFundPage.css'
 
 /** One line of the review step: what a field is now and what it becomes. */
@@ -96,23 +97,6 @@ function errorMessage(err: unknown, fallback: string): string {
 
 function nextId(items: Array<{ id: number }>): number {
   return items.reduce((max, item) => Math.max(max, item.id), 0) + 1
-}
-
-function creatorsToCsv(creators: AdminCreator[]): string {
-  const columns: Array<keyof AdminCreator> = [
-    'address',
-    'first_name',
-    'last_name',
-    'email',
-    'email_verified_at',
-    'status',
-    'enrolled_at',
-    'terms_version',
-  ]
-  const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
-  return [columns.join(','), ...creators.map(creator => columns.map(column => cell(creator[column])).join(','))].join(
-    '\n'
-  )
 }
 
 async function loadPage(authenticatedFetch: AuthenticatedFetch): Promise<{ data: PageData } | { error: string }> {
