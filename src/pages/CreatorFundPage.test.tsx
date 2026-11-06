@@ -46,7 +46,7 @@ describe('CreatorFundPage', () => {
 
     expect(await screen.findByText('Ada Lovelace')).toBeTruthy()
     expect(screen.getByText('running')).toBeTruthy()
-    expect(screen.getByText(/Version 1: Beta terms/)).toBeTruthy()
+    expect(screen.getByText(/Beta terms/)).toBeTruthy()
     expect(api.getCreators).toHaveBeenCalledWith(authenticatedFetch)
   })
 
@@ -57,13 +57,14 @@ describe('CreatorFundPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: `Suspend ${ADA.address}` }))
     expect(api.setCreatorStatus).not.toHaveBeenCalled()
 
-    const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText(/Suspend creator/)).toBeTruthy()
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }))
+    const dialog = screen.getByRole('dialog', { name: 'Suspend creator' })
+    expect(within(dialog).getByText('suspended')).toBeTruthy()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Suspend' }))
 
     await waitFor(() => expect(api.setCreatorStatus).toHaveBeenCalledWith(authenticatedFetch, ADA.address, 'suspended'))
     await waitFor(() => expect(api.getCreators).toHaveBeenCalledTimes(2))
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Creator suspended')
   })
 
   it('does nothing when the dialog is cancelled', async () => {
@@ -81,7 +82,7 @@ describe('CreatorFundPage', () => {
     render(<CreatorFundPage />)
 
     await userEvent.click(await screen.findByRole('button', { name: `Suspend ${ADA.address}` }))
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Suspend' }))
 
     expect(await within(screen.getByRole('dialog')).findByText('0x… is not enrolled')).toBeTruthy()
   })
@@ -90,17 +91,38 @@ describe('CreatorFundPage', () => {
     vi.mocked(api.publishTerms).mockResolvedValue({ version: 2, title: 'v2', published_at: RUNNING.start_at, content: 'x' })
     render(<CreatorFundPage />)
 
-    await userEvent.type(await screen.findByLabelText('Terms title'), 'v2')
-    await userEvent.type(screen.getByLabelText('Terms content'), 'New text')
-    await userEvent.click(screen.getByRole('button', { name: 'Publish version 2' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Publish version 2' }))
 
-    const dialog = screen.getByRole('dialog')
+    // The editor starts from the current version, so the fields are cleared before typing.
+    const title = screen.getByLabelText('Terms title')
+    expect(title).toHaveProperty('value', 'Beta terms')
+    await userEvent.clear(title)
+    await userEvent.type(title, 'v2')
+    const content = screen.getByLabelText('Terms content')
+    await userEvent.clear(content)
+    await userEvent.type(content, 'New text')
+    await userEvent.click(screen.getByRole('button', { name: 'Review' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Publish terms version 2' })
     expect(within(dialog).getByText(/terms outdated/)).toBeTruthy()
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
 
     await waitFor(() =>
       expect(api.publishTerms).toHaveBeenCalledWith(authenticatedFetch, 2, { title: 'v2', content: 'New text' })
     )
+  })
+
+  it('refuses to review a cycle whose end is not after its start, and sends nothing', async () => {
+    render(<CreatorFundPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'New cycle' }))
+    await userEvent.type(screen.getByLabelText('Cycle start'), '2026-12-01T00:00')
+    await userEvent.type(screen.getByLabelText('Cycle end'), '2026-12-01T00:00')
+    await userEvent.click(screen.getByRole('button', { name: 'Review' }))
+
+    expect(screen.getByText('Must be after the start')).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: 'Create cycle 3' })).toBeNull()
+    expect(api.putCycle).not.toHaveBeenCalled()
   })
 
   it('shows the load error with a Retry that refetches', async () => {

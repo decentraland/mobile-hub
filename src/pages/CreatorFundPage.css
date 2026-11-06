@@ -170,14 +170,6 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
-.cf-exclude-form {
-  align-items: center;
-  padding: 10px;
-  background: rgba(255, 68, 68, 0.06);
-  border-radius: 8px;
-  font-size: 13px;
-}
-
 .cf-page input,
 .cf-page select,
 .cf-page textarea {
@@ -315,4 +307,227 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
+}
+
+/* ---- editors, review and feedback ---- */
+
+.cf-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.cf-section-head h2 {
+  margin-bottom: 4px;
+}
+
+.cf-section-head .cf-hint {
+  font-size: 13px;
+}
+
+.cf-modal-wide {
+  width: min(720px, 94vw);
+}
+
+.cf-modal-subject {
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+}
+
+.cf-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.cf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cf-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.cf-field-hint {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.cf-field-error {
+  font-size: 12px;
+  color: #ff6b6b;
+}
+
+.cf-field-invalid input,
+.cf-field-invalid textarea {
+  border-color: rgba(255, 68, 68, 0.6);
+}
+
+.cf-page input:focus,
+.cf-page select:focus,
+.cf-page textarea:focus {
+  outline: none;
+  border-color: #00d9ff;
+  box-shadow: 0 0 0 2px rgba(0, 217, 255, 0.2);
+}
+
+.cf-page input:disabled {
+  opacity: 0.5;
+}
+
+.cf-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  align-self: flex-start;
+}
+
+.cf-segmented button {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cf-segmented .cf-segment-active {
+  background: rgba(0, 217, 255, 0.15);
+  color: #00d9ff;
+}
+
+.cf-pre-tall {
+  min-height: 320px;
+}
+
+.cf-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.cf-choice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.cf-choice input {
+  margin-top: 3px;
+}
+
+.cf-choice-active {
+  border-color: rgba(0, 217, 255, 0.6);
+  background: rgba(0, 217, 255, 0.06);
+}
+
+.cf-changes {
+  margin: 12px 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cf-change {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cf-change:last-child {
+  border-bottom: none;
+}
+
+.cf-change dt {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.cf-change dd {
+  color: rgba(255, 255, 255, 0.9);
+  overflow-wrap: anywhere;
+}
+
+.cf-change-before {
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: line-through;
+}
+
+.cf-change-arrow {
+  margin: 0 8px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.cf-change-after {
+  color: #00d9ff;
+}
+
+.cf-button-danger-outline {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 68, 68, 0.4);
+  background: transparent;
+  color: #ff6b6b;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cf-button-danger-outline:hover,
+.cf-button-danger:hover {
+  background: rgba(255, 68, 68, 0.25);
+}
+
+.cf-button-primary:hover {
+  background: #33e1ff;
+}
+
+.cf-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cf-list-main {
+  flex: 1;
+}
+
+.cf-row-muted {
+  opacity: 0.55;
+}
+
+.cf-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  background: #0b1b1f;
+  border: 1px solid rgba(0, 217, 255, 0.5);
+  border-radius: 999px;
+  color: #00d9ff;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 110;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }

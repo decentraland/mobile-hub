@@ -20,26 +20,37 @@ import {
   type AdminCreator,
   type AdminCyclePlace,
   type AuthenticatedFetch,
+  type CreatorExclusionReason,
   type Cycle,
   type Exclusions,
   type NewsItem,
+  type PlaceExclusionReason,
   type SweepResult,
   type Terms,
 } from '../features/creator-fund/api'
 import './CreatorFundPage.css'
 
-/** One write, shown in the confirm dialog before it runs. The page reloads after it succeeds. */
+/** One line of the review step: what a field is now and what it becomes. */
+interface Change {
+  label: string
+  before?: string
+  after: string
+}
+
+/** One write, reviewed before it runs. The page reloads and shows `success` once it has. */
 interface Action {
   title: string
-  detail: string
+  confirmLabel: string
+  changes: Change[]
   warning?: string
   danger?: boolean
+  success: string
   run: () => Promise<void>
 }
 
-type ConfirmState =
+type ReviewState =
   | { status: 'idle' }
-  | { status: 'confirming'; action: Action }
+  | { status: 'reviewing'; action: Action }
   | { status: 'saving'; action: Action }
   | { status: 'error'; action: Action; message: string }
 
@@ -51,21 +62,25 @@ interface PageData {
   exclusions: Exclusions
 }
 
-const PLACE_REASONS = [
-  { value: 'content_policy', label: 'Content policy' },
-  { value: 'excluded', label: 'Excluded' },
-] as const
-const CREATOR_REASONS = [
-  { value: 'internal', label: 'Internal account' },
-  { value: 'excluded', label: 'Excluded' },
-] as const
+const PLACE_REASONS: ReadonlyArray<{ value: PlaceExclusionReason; label: string; hint: string }> = [
+  { value: 'content_policy', label: 'Content policy', hint: 'The creator sees "fails the Content Policy" on the card.' },
+  { value: 'excluded', label: 'Excluded', hint: 'The creator sees "excluded from the programme", with no reason given.' },
+]
+const CREATOR_REASONS: ReadonlyArray<{ value: CreatorExclusionReason; label: string; hint: string }> = [
+  { value: 'internal', label: 'Internal account', hint: 'Foundation or Regenesis Labs. They are told internal accounts cannot join.' },
+  { value: 'excluded', label: 'Excluded', hint: 'They are told the account is not eligible, with no reason given.' },
+]
 
 function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`
 }
 
-function formatDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString() : '—'
+function formatDate(iso: string | null | undefined): string {
+  return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'
+}
+
+function formatPool(pool: number | null): string {
+  return pool === null ? 'unset' : `${pool.toLocaleString()} USDC`
 }
 
 /** An ISO instant as a `datetime-local` input wants it, in the browser's zone. */
@@ -119,7 +134,8 @@ export const CreatorFundPage: FC = () => {
   const authenticatedFetch = useAuthenticatedFetch()
   const [data, setData] = useState<PageData | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [confirm, setConfirm] = useState<ConfirmState>({ status: 'idle' })
+  const [review, setReview] = useState<ReviewState>({ status: 'idle' })
+  const [toast, setToast] = useState<string | null>(null)
   // Bumped after every confirmed write and by Retry, so the whole page re-reads what the service holds.
   const [generation, setGeneration] = useState(0)
   const reload = () => setGeneration(current => current + 1)
@@ -140,18 +156,25 @@ export const CreatorFundPage: FC = () => {
     }
   }, [authenticatedFetch, generation])
 
-  const ask = (action: Action) => setConfirm({ status: 'confirming', action })
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(timer)
+  }, [toast])
+
+  const ask = (action: Action) => setReview({ status: 'reviewing', action })
 
   const handleConfirm = async () => {
-    if (confirm.status !== 'confirming' && confirm.status !== 'error') return
-    const { action } = confirm
-    setConfirm({ status: 'saving', action })
+    if (review.status !== 'reviewing' && review.status !== 'error') return
+    const { action } = review
+    setReview({ status: 'saving', action })
     try {
       await action.run()
-      setConfirm({ status: 'idle' })
+      setReview({ status: 'idle' })
+      setToast(action.success)
       reload()
     } catch (err) {
-      setConfirm({ status: 'error', action, message: errorMessage(err, 'The change was not saved') })
+      setReview({ status: 'error', action, message: errorMessage(err, 'The change was not saved') })
     }
   }
 
@@ -161,8 +184,8 @@ export const CreatorFundPage: FC = () => {
         <header className="cf-header">
           <h1>Creator Fund</h1>
           <p>
-            Cycles, terms, news, enrolled creators and exclusions, as creators-data serves them to Creator
-            Hub. Every change asks before it runs and is recorded with your wallet.
+            What creators-data serves to Creator Hub's Earn tab. Every change is reviewed before it runs and is
+            recorded with your wallet.
           </p>
         </header>
 
@@ -199,8 +222,13 @@ export const CreatorFundPage: FC = () => {
         )}
       </div>
 
-      {confirm.status !== 'idle' && (
-        <ConfirmDialog state={confirm} onConfirm={handleConfirm} onCancel={() => setConfirm({ status: 'idle' })} />
+      {review.status !== 'idle' && (
+        <ReviewDialog state={review} onConfirm={handleConfirm} onCancel={() => setReview({ status: 'idle' })} />
+      )}
+      {toast && (
+        <div className="cf-toast" role="status">
+          {toast}
+        </div>
       )}
     </div>
   )
@@ -211,51 +239,83 @@ interface SectionProps {
   ask: (action: Action) => void
 }
 
-const Section: FC<{ title: string; children: ReactNode }> = ({ title, children }) => (
+const Section: FC<{ title: string; hint?: string; action?: ReactNode; children: ReactNode }> = ({
+  title,
+  hint,
+  action,
+  children,
+}) => (
   <section className="cf-section">
-    <h2>{title}</h2>
+    <div className="cf-section-head">
+      <div>
+        <h2>{title}</h2>
+        {hint && <p className="cf-hint">{hint}</p>}
+      </div>
+      {action}
+    </div>
     {children}
   </section>
 )
 
-const CyclesSection: FC<SectionProps & { cycles: Cycle[] }> = ({ cycles, authenticatedFetch, ask }) => {
-  const [id, setId] = useState(String(nextId(cycles)))
-  const [startAt, setStartAt] = useState('')
-  const [endAt, setEndAt] = useState('')
-  const [pool, setPool] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  const edit = (cycle: Cycle) => {
-    setId(String(cycle.id))
-    setStartAt(toLocalInput(cycle.start_at))
-    setEndAt(toLocalInput(cycle.end_at))
-    setPool(cycle.pool_usdc === null ? '' : String(cycle.pool_usdc))
-    setError(null)
-  }
-
-  const submit = () => {
-    const cycleId = Number(id)
-    if (!Number.isInteger(cycleId) || cycleId < 1 || !startAt || !endAt) {
-      setError('A positive id and both dates are needed')
-      return
+/** The shell every editor shares: backdrop, Escape to close, the first field focused. */
+const Dialog: FC<{ title: string; onClose: () => void; children: ReactNode; wide?: boolean }> = ({
+  title,
+  onClose,
+  children,
+  wide,
+}) => {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
     }
-    const poolUsdc = pool.trim() === '' ? null : Number(pool)
-    if (poolUsdc !== null && (!Number.isFinite(poolUsdc) || poolUsdc < 0)) {
-      setError('The pool must be a non-negative amount, or empty')
-      return
-    }
-    setError(null)
-    const input = { start_at: new Date(startAt).toISOString(), end_at: new Date(endAt).toISOString(), pool_usdc: poolUsdc }
-    const exists = cycles.some(cycle => cycle.id === cycleId)
-    ask({
-      title: exists ? `Update cycle ${cycleId}` : `Create cycle ${cycleId}`,
-      detail: `${formatDate(input.start_at)} → ${formatDate(input.end_at)}, pool ${poolUsdc === null ? 'unset' : `${poolUsdc} USDC`}`,
-      run: () => putCycle(authenticatedFetch, cycleId, input).then(() => undefined),
-    })
-  }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   return (
-    <Section title="Cycles">
+    <div className="cf-modal-backdrop" onClick={onClose}>
+      <div
+        className={`cf-modal ${wide ? 'cf-modal-wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={e => e.stopPropagation()}
+      >
+        <h3>{title}</h3>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+const Field: FC<{ label: string; hint?: string; error?: string | null; children: ReactNode }> = ({
+  label,
+  hint,
+  error,
+  children,
+}) => (
+  <label className={`cf-field ${error ? 'cf-field-invalid' : ''}`}>
+    <span className="cf-field-label">{label}</span>
+    {children}
+    {error ? <span className="cf-field-error">{error}</span> : hint ? <span className="cf-field-hint">{hint}</span> : null}
+  </label>
+)
+
+/* ---------------------------------- cycles ---------------------------------- */
+
+const CyclesSection: FC<SectionProps & { cycles: Cycle[] }> = ({ cycles, authenticatedFetch, ask }) => {
+  const [editing, setEditing] = useState<Cycle | 'new' | null>(null)
+
+  return (
+    <Section
+      title="Cycles"
+      hint="A cycle's status comes from its dates. Creators see the running one; closed ones are frozen snapshots."
+      action={
+        <button className="cf-button-primary" onClick={() => setEditing('new')}>
+          New cycle
+        </button>
+      }
+    >
       <table className="cf-table">
         <thead>
           <tr>
@@ -273,12 +333,12 @@ const CyclesSection: FC<SectionProps & { cycles: Cycle[] }> = ({ cycles, authent
               <td>{cycle.id}</td>
               <td>{formatDate(cycle.start_at)}</td>
               <td>{formatDate(cycle.end_at)}</td>
-              <td>{cycle.pool_usdc === null ? '—' : `${cycle.pool_usdc} USDC`}</td>
+              <td>{formatPool(cycle.pool_usdc)}</td>
               <td>
                 <span className={`cf-badge cf-badge-${cycle.status}`}>{cycle.status}</span>
               </td>
               <td className="cf-row-actions">
-                <button className="cf-button-secondary" onClick={() => edit(cycle)}>
+                <button className="cf-button-secondary" aria-label={`Edit cycle ${cycle.id}`} onClick={() => setEditing(cycle)}>
                   Edit
                 </button>
               </td>
@@ -287,154 +347,361 @@ const CyclesSection: FC<SectionProps & { cycles: Cycle[] }> = ({ cycles, authent
           {cycles.length === 0 && (
             <tr>
               <td colSpan={6} className="cf-empty">
-                No cycles yet.
+                No cycles yet. Create the first one so creators have something to join.
               </td>
             </tr>
           )}
         </tbody>
       </table>
-      <div className="cf-form">
-        <label>
-          <span>Id</span>
-          <input aria-label="Cycle id" value={id} inputMode="numeric" onChange={e => setId(e.target.value)} />
-        </label>
-        <label>
-          <span>Start</span>
-          <input aria-label="Cycle start" type="datetime-local" value={startAt} onChange={e => setStartAt(e.target.value)} />
-        </label>
-        <label>
-          <span>End</span>
-          <input aria-label="Cycle end" type="datetime-local" value={endAt} onChange={e => setEndAt(e.target.value)} />
-        </label>
-        <label>
-          <span>Pool (USDC)</span>
-          <input aria-label="Cycle pool" value={pool} inputMode="decimal" placeholder="unset" onChange={e => setPool(e.target.value)} />
-        </label>
-        <button className="cf-button-primary" onClick={submit}>
-          Save cycle
-        </button>
-      </div>
-      {error && <div className="cf-error">{error}</div>}
-      <p className="cf-hint">A closed cycle keeps its dates; only its pool can change. Dates may not overlap another cycle.</p>
+      {editing && (
+        <CycleEditor
+          cycle={editing === 'new' ? null : editing}
+          cycles={cycles}
+          onClose={() => setEditing(null)}
+          onSubmit={action => {
+            setEditing(null)
+            ask(action)
+          }}
+          authenticatedFetch={authenticatedFetch}
+        />
+      )}
     </Section>
   )
 }
 
-const TermsSection: FC<SectionProps & { terms: Terms | null }> = ({ terms, authenticatedFetch, ask }) => {
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const nextVersion = (terms?.version ?? 0) + 1
+const CycleEditor: FC<{
+  cycle: Cycle | null
+  cycles: Cycle[]
+  authenticatedFetch: AuthenticatedFetch
+  onClose: () => void
+  onSubmit: (action: Action) => void
+}> = ({ cycle, cycles, authenticatedFetch, onClose, onSubmit }) => {
+  const closed = cycle?.status === 'closed'
+  const id = cycle?.id ?? nextId(cycles)
+  const [startAt, setStartAt] = useState(cycle ? toLocalInput(cycle.start_at) : '')
+  const [endAt, setEndAt] = useState(cycle ? toLocalInput(cycle.end_at) : '')
+  const [pool, setPool] = useState(cycle?.pool_usdc === null || cycle === null ? '' : String(cycle.pool_usdc))
+  const [touched, setTouched] = useState(false)
+
+  const start = startAt ? new Date(startAt) : null
+  const end = endAt ? new Date(endAt) : null
+  const poolValue = pool.trim() === '' ? null : Number(pool)
+  const overlap =
+    start && end
+      ? cycles.find(other => other.id !== id && new Date(other.start_at) < end && new Date(other.end_at) > start)
+      : undefined
+
+  const errors = {
+    start: !start ? 'Pick when the cycle starts' : null,
+    end: !end ? 'Pick when the cycle ends' : start && end <= start ? 'Must be after the start' : overlap ? `Overlaps cycle ${overlap.id}` : null,
+    pool: poolValue !== null && (!Number.isFinite(poolValue) || poolValue < 0) ? 'A non-negative amount, or empty' : null,
+  }
+  const valid = !errors.start && !errors.end && !errors.pool
 
   const submit = () => {
-    if (title.trim() === '' || content.trim() === '') {
-      setError('A title and the Markdown content are needed')
-      return
-    }
-    setError(null)
-    ask({
-      title: `Publish terms version ${nextVersion}`,
-      detail: title.trim(),
-      warning: terms
-        ? 'Every enrolled creator drops to "terms outdated" until they accept the new version in Creator Hub.'
-        : undefined,
-      run: () => publishTerms(authenticatedFetch, nextVersion, { title: title.trim(), content }).then(() => undefined),
+    setTouched(true)
+    if (!valid || !start || !end) return
+    const input = { start_at: start.toISOString(), end_at: end.toISOString(), pool_usdc: poolValue }
+    const changes: Change[] = cycle
+      ? [
+          { label: 'Start', before: formatDate(cycle.start_at), after: formatDate(input.start_at) },
+          { label: 'End', before: formatDate(cycle.end_at), after: formatDate(input.end_at) },
+          { label: 'Pool', before: formatPool(cycle.pool_usdc), after: formatPool(poolValue) },
+        ].filter(change => change.before !== change.after)
+      : [
+          { label: 'Id', after: String(id) },
+          { label: 'Start', after: formatDate(input.start_at) },
+          { label: 'End', after: formatDate(input.end_at) },
+          { label: 'Pool', after: formatPool(poolValue) },
+        ]
+    onSubmit({
+      title: cycle ? `Update cycle ${id}` : `Create cycle ${id}`,
+      confirmLabel: cycle ? 'Update cycle' : 'Create cycle',
+      changes,
+      warning: !cycle && start <= new Date() ? 'This cycle starts in the past, so it is running the moment it is saved.' : undefined,
+      success: cycle ? `Cycle ${id} updated` : `Cycle ${id} created`,
+      run: () => putCycle(authenticatedFetch, id, input).then(() => undefined),
     })
   }
 
   return (
-    <Section title="Terms">
+    <Dialog title={cycle ? `Edit cycle ${id}` : `New cycle ${id}`} onClose={onClose}>
+      {closed && <div className="cf-warning">This cycle is closed: its dates are frozen, only the pool can change.</div>}
+      <div className="cf-fields">
+        <Field label="Start" error={touched ? errors.start : null}>
+          <input
+            aria-label="Cycle start"
+            type="datetime-local"
+            value={startAt}
+            disabled={closed}
+            autoFocus={!closed}
+            onChange={e => setStartAt(e.target.value)}
+          />
+        </Field>
+        <Field label="End" hint="Exclusive: the cycle closes at this moment." error={touched ? errors.end : null}>
+          <input aria-label="Cycle end" type="datetime-local" value={endAt} disabled={closed} onChange={e => setEndAt(e.target.value)} />
+        </Field>
+        <Field label="Pool (USDC)" hint="Leave empty until the pool is decided." error={touched ? errors.pool : null}>
+          <input
+            aria-label="Cycle pool"
+            value={pool}
+            inputMode="decimal"
+            placeholder="unset"
+            autoFocus={closed}
+            onChange={e => setPool(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submit()}
+          />
+        </Field>
+      </div>
+      <div className="cf-modal-actions">
+        <button className="cf-button-secondary" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="cf-button-primary" onClick={submit} disabled={touched && !valid}>
+          Review
+        </button>
+      </div>
+    </Dialog>
+  )
+}
+
+/* ---------------------------------- terms ---------------------------------- */
+
+const TermsSection: FC<SectionProps & { terms: Terms | null }> = ({ terms, authenticatedFetch, ask }) => {
+  const [editing, setEditing] = useState(false)
+  const nextVersion = (terms?.version ?? 0) + 1
+
+  return (
+    <Section
+      title="Terms"
+      hint="Creators accept the current version when they join. Publishing a new one makes every creator accept again."
+      action={
+        <button className="cf-button-primary" onClick={() => setEditing(true)}>
+          Publish version {nextVersion}
+        </button>
+      }
+    >
       {terms ? (
         <details className="cf-details">
           <summary>
-            Version {terms.version}: {terms.title} <span className="cf-muted">({formatDate(terms.published_at)})</span>
+            <span className="cf-badge cf-badge-running">v{terms.version}</span> {terms.title}{' '}
+            <span className="cf-muted">published {formatDate(terms.published_at)}</span>
           </summary>
           <pre className="cf-pre">{terms.content}</pre>
         </details>
       ) : (
-        <p className="cf-hint">No terms are published yet, so nobody can join.</p>
+        <div className="cf-empty">No terms are published yet, so nobody can join.</div>
       )}
-      <div className="cf-form cf-form-column">
-        <label>
-          <span>Title for version {nextVersion}</span>
-          <input aria-label="Terms title" value={title} maxLength={200} onChange={e => setTitle(e.target.value)} />
-        </label>
-        <label>
-          <span>Content (Markdown)</span>
-          <textarea aria-label="Terms content" value={content} rows={8} onChange={e => setContent(e.target.value)} />
-        </label>
-        <button className="cf-button-primary" onClick={submit}>
-          Publish version {nextVersion}
-        </button>
-      </div>
-      {error && <div className="cf-error">{error}</div>}
+      {editing && (
+        <TermsEditor
+          current={terms}
+          version={nextVersion}
+          authenticatedFetch={authenticatedFetch}
+          onClose={() => setEditing(false)}
+          onSubmit={action => {
+            setEditing(false)
+            ask(action)
+          }}
+        />
+      )}
     </Section>
   )
 }
 
-const NewsSection: FC<SectionProps & { news: NewsItem[] }> = ({ news, authenticatedFetch, ask }) => {
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [error, setError] = useState<string | null>(null)
+const TermsEditor: FC<{
+  current: Terms | null
+  version: number
+  authenticatedFetch: AuthenticatedFetch
+  onClose: () => void
+  onSubmit: (action: Action) => void
+}> = ({ current, version, authenticatedFetch, onClose, onSubmit }) => {
+  const [title, setTitle] = useState(current?.title ?? '')
+  const [content, setContent] = useState(current?.content ?? '')
+  const [preview, setPreview] = useState(false)
+  const [touched, setTouched] = useState(false)
+  const errors = {
+    title: title.trim() === '' ? 'Give the version a title' : null,
+    content: content.trim() === '' ? 'The terms need their text' : null,
+  }
+  const valid = !errors.title && !errors.content
+  const unchanged = current !== null && current.title === title.trim() && current.content === content
 
   const submit = () => {
-    if (title.trim() === '' || body.trim() === '') {
-      setError('A title and a body are needed')
-      return
-    }
-    setError(null)
-    const id = nextId(news)
-    ask({
-      title: 'Publish news',
-      detail: title.trim(),
-      run: () => putNews(authenticatedFetch, id, { title: title.trim(), body: body.trim() }).then(() => undefined),
+    setTouched(true)
+    if (!valid || unchanged) return
+    onSubmit({
+      title: `Publish terms version ${version}`,
+      confirmLabel: 'Publish',
+      changes: [
+        { label: 'Version', before: current ? `v${current.version}` : undefined, after: `v${version}` },
+        { label: 'Title', before: current?.title, after: title.trim() },
+        { label: 'Length', before: current ? `${current.content.length} characters` : undefined, after: `${content.length} characters` },
+      ],
+      warning: current
+        ? 'Every enrolled creator drops to "terms outdated" until they accept this version in Creator Hub. Their places earn nothing in the meantime.'
+        : undefined,
+      success: `Terms v${version} published`,
+      run: () => publishTerms(authenticatedFetch, version, { title: title.trim(), content }).then(() => undefined),
     })
   }
 
   return (
-    <Section title="News">
+    <Dialog title={`Publish terms version ${version}`} onClose={onClose} wide>
+      <div className="cf-fields">
+        <Field label="Title" error={touched ? errors.title : null}>
+          <input aria-label="Terms title" value={title} maxLength={200} autoFocus onChange={e => setTitle(e.target.value)} />
+        </Field>
+        <Field
+          label="Content"
+          hint={`Markdown, ${content.length.toLocaleString()} characters. Prefilled with the current version to edit from.`}
+          error={touched ? errors.content : null}
+        >
+          <div className="cf-segmented">
+            <button className={preview ? '' : 'cf-segment-active'} onClick={() => setPreview(false)}>
+              Write
+            </button>
+            <button className={preview ? 'cf-segment-active' : ''} onClick={() => setPreview(true)}>
+              Preview
+            </button>
+          </div>
+          {preview ? (
+            <pre className="cf-pre cf-pre-tall">{content || 'Nothing to preview yet.'}</pre>
+          ) : (
+            <textarea aria-label="Terms content" value={content} rows={14} onChange={e => setContent(e.target.value)} />
+          )}
+        </Field>
+      </div>
+      {unchanged && <div className="cf-hint">Nothing changed from version {current?.version}.</div>}
+      <div className="cf-modal-actions">
+        <button className="cf-button-secondary" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="cf-button-primary" onClick={submit} disabled={unchanged || (touched && !valid)}>
+          Review
+        </button>
+      </div>
+    </Dialog>
+  )
+}
+
+/* ---------------------------------- news ---------------------------------- */
+
+const NewsSection: FC<SectionProps & { news: NewsItem[] }> = ({ news, authenticatedFetch, ask }) => {
+  const [editing, setEditing] = useState<NewsItem | 'new' | null>(null)
+
+  return (
+    <Section
+      title="News"
+      hint="Shown on the Earn tab's Leaderboard, newest first."
+      action={
+        <button className="cf-button-primary" onClick={() => setEditing('new')}>
+          New post
+        </button>
+      }
+    >
       <ul className="cf-list">
         {news.map(item => (
           <li key={item.id}>
-            <div>
+            <div className="cf-list-main">
               <strong>{item.title}</strong> <span className="cf-muted">{formatDate(item.published_at)}</span>
               <p>{item.body}</p>
             </div>
-            <button
-              className="cf-button-danger"
-              aria-label={`Delete news ${item.title}`}
-              onClick={() =>
-                ask({
-                  title: 'Delete news',
-                  detail: item.title,
-                  danger: true,
-                  run: () => deleteNews(authenticatedFetch, item.id),
-                })
-              }
-            >
-              Delete
-            </button>
+            <div className="cf-row-actions">
+              <button className="cf-button-secondary" aria-label={`Edit news ${item.title}`} onClick={() => setEditing(item)}>
+                Edit
+              </button>
+              <button
+                className="cf-button-danger-outline"
+                aria-label={`Delete news ${item.title}`}
+                onClick={() =>
+                  ask({
+                    title: 'Delete post',
+                    confirmLabel: 'Delete',
+                    changes: [{ label: 'Post', before: item.title, after: 'removed' }],
+                    danger: true,
+                    success: 'Post deleted',
+                    run: () => deleteNews(authenticatedFetch, item.id),
+                  })
+                }
+              >
+                Delete
+              </button>
+            </div>
           </li>
         ))}
-        {news.length === 0 && <li className="cf-empty">No news published.</li>}
+        {news.length === 0 && <li className="cf-empty">No posts yet.</li>}
       </ul>
-      <div className="cf-form cf-form-column">
-        <label>
-          <span>Title</span>
-          <input aria-label="News title" value={title} maxLength={200} onChange={e => setTitle(e.target.value)} />
-        </label>
-        <label>
-          <span>Body</span>
-          <textarea aria-label="News body" value={body} rows={3} onChange={e => setBody(e.target.value)} />
-        </label>
-        <button className="cf-button-primary" onClick={submit}>
-          Publish news
-        </button>
-      </div>
-      {error && <div className="cf-error">{error}</div>}
+      {editing && (
+        <NewsEditor
+          item={editing === 'new' ? null : editing}
+          id={editing === 'new' ? nextId(news) : editing.id}
+          authenticatedFetch={authenticatedFetch}
+          onClose={() => setEditing(null)}
+          onSubmit={action => {
+            setEditing(null)
+            ask(action)
+          }}
+        />
+      )}
     </Section>
   )
 }
+
+const NewsEditor: FC<{
+  item: NewsItem | null
+  id: number
+  authenticatedFetch: AuthenticatedFetch
+  onClose: () => void
+  onSubmit: (action: Action) => void
+}> = ({ item, id, authenticatedFetch, onClose, onSubmit }) => {
+  const [title, setTitle] = useState(item?.title ?? '')
+  const [body, setBody] = useState(item?.body ?? '')
+  const [touched, setTouched] = useState(false)
+  const errors = {
+    title: title.trim() === '' ? 'Give the post a title' : null,
+    body: body.trim() === '' ? 'Write the post' : null,
+  }
+  const valid = !errors.title && !errors.body
+
+  const submit = () => {
+    setTouched(true)
+    if (!valid) return
+    const input = { title: title.trim(), body: body.trim() }
+    onSubmit({
+      title: item ? 'Update post' : 'Publish post',
+      confirmLabel: item ? 'Update' : 'Publish',
+      changes: [
+        { label: 'Title', before: item?.title, after: input.title },
+        { label: 'Body', before: item?.body, after: input.body },
+      ].filter(change => change.before !== change.after),
+      success: item ? 'Post updated' : 'Post published',
+      run: () => putNews(authenticatedFetch, id, input).then(() => undefined),
+    })
+  }
+
+  return (
+    <Dialog title={item ? 'Edit post' : 'New post'} onClose={onClose}>
+      <div className="cf-fields">
+        <Field label="Title" error={touched ? errors.title : null}>
+          <input aria-label="News title" value={title} maxLength={200} autoFocus onChange={e => setTitle(e.target.value)} />
+        </Field>
+        <Field label="Body" hint="Plain text, a few lines." error={touched ? errors.body : null}>
+          <textarea aria-label="News body" value={body} rows={4} onChange={e => setBody(e.target.value)} />
+        </Field>
+      </div>
+      <div className="cf-modal-actions">
+        <button className="cf-button-secondary" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="cf-button-primary" onClick={submit} disabled={touched && !valid}>
+          Review
+        </button>
+      </div>
+    </Dialog>
+  )
+}
+
+/* ---------------------------------- creators ---------------------------------- */
 
 const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: Set<string> }> = ({
   creators,
@@ -443,7 +710,7 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
   ask,
 }) => {
   const [filter, setFilter] = useState('')
-  const [excluding, setExcluding] = useState<string | null>(null)
+  const [excluding, setExcluding] = useState<AdminCreator | null>(null)
   const needle = filter.trim().toLowerCase()
   const shown = needle
     ? creators.filter(creator =>
@@ -463,18 +730,33 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
   }
 
   const toggleStatus = (creator: AdminCreator) => {
-    const next = creator.status === 'active' ? 'suspended' : 'active'
+    const suspend = creator.status === 'active'
     ask({
-      title: next === 'suspended' ? 'Suspend creator' : 'Reinstate creator',
-      detail: `${creator.first_name} ${creator.last_name} (${shortAddress(creator.address)})`,
-      warning: next === 'suspended' ? 'Their places leave the programme until reinstated.' : undefined,
-      danger: next === 'suspended',
-      run: () => setCreatorStatus(authenticatedFetch, creator.address, next).then(() => undefined),
+      title: suspend ? 'Suspend creator' : 'Reinstate creator',
+      confirmLabel: suspend ? 'Suspend' : 'Reinstate',
+      changes: [
+        { label: 'Creator', after: `${creator.first_name} ${creator.last_name} (${shortAddress(creator.address)})` },
+        { label: 'Status', before: creator.status, after: suspend ? 'suspended' : 'active' },
+      ],
+      warning: suspend
+        ? 'Their places leave the programme and they see "suspended" in Creator Hub until reinstated.'
+        : 'Their places are back in the programme from the next sweep.',
+      danger: suspend,
+      success: suspend ? 'Creator suspended' : 'Creator reinstated',
+      run: () => setCreatorStatus(authenticatedFetch, creator.address, suspend ? 'suspended' : 'active').then(() => undefined),
     })
   }
 
   return (
-    <Section title={`Creators (${creators.length})`}>
+    <Section
+      title={`Creators (${creators.length})`}
+      hint="Everyone who joined. Names and emails never leave this page."
+      action={
+        <button className="cf-button-secondary" onClick={exportCsv} disabled={shown.length === 0}>
+          Export CSV{needle ? ` (${shown.length})` : ''}
+        </button>
+      }
+    >
       <div className="cf-toolbar">
         <input
           aria-label="Filter creators"
@@ -482,9 +764,6 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
           value={filter}
           onChange={e => setFilter(e.target.value)}
         />
-        <button className="cf-button-secondary" onClick={exportCsv} disabled={shown.length === 0}>
-          Export CSV
-        </button>
       </div>
       <table className="cf-table">
         <thead>
@@ -509,17 +788,22 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
               </td>
               <td>
                 {creator.email}
-                {creator.email_verified_at && <span className="cf-muted"> ✓</span>}
+                {creator.email_verified_at && (
+                  <span className="cf-muted" title={`Verified ${formatDate(creator.email_verified_at)}`}>
+                    {' '}
+                    ✓
+                  </span>
+                )}
               </td>
               <td>{formatDate(creator.enrolled_at)}</td>
-              <td>{creator.terms_version ?? '—'}</td>
+              <td>{creator.terms_version === null ? '—' : `v${creator.terms_version}`}</td>
               <td>
                 <span className={`cf-badge cf-badge-${creator.status}`}>{creator.status}</span>
                 {excluded.has(creator.address) && <span className="cf-badge cf-badge-excluded">excluded</span>}
               </td>
               <td className="cf-row-actions">
                 <button
-                  className="cf-button-secondary"
+                  className={creator.status === 'active' ? 'cf-button-danger-outline' : 'cf-button-secondary'}
                   aria-label={`${creator.status === 'active' ? 'Suspend' : 'Reinstate'} ${creator.address}`}
                   onClick={() => toggleStatus(creator)}
                 >
@@ -527,9 +811,9 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
                 </button>
                 {!excluded.has(creator.address) && (
                   <button
-                    className="cf-button-secondary"
+                    className="cf-button-danger-outline"
                     aria-label={`Exclude ${creator.address}`}
-                    onClick={() => setExcluding(excluding === creator.address ? null : creator.address)}
+                    onClick={() => setExcluding(creator)}
                   >
                     Exclude
                   </button>
@@ -547,18 +831,26 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
         </tbody>
       </table>
       {excluding && (
-        <ExcludeForm
-          subject={shortAddress(excluding)}
+        <ExcludeDialog
+          title="Exclude creator"
+          subject={`${excluding.first_name} ${excluding.last_name} (${shortAddress(excluding.address)})`}
           reasons={CREATOR_REASONS}
-          onCancel={() => setExcluding(null)}
+          onClose={() => setExcluding(null)}
           onSubmit={(reason, note) => {
+            const creator = excluding
             setExcluding(null)
             ask({
               title: 'Exclude creator',
-              detail: `${shortAddress(excluding)}: ${reason}`,
+              confirmLabel: 'Exclude',
+              changes: [
+                { label: 'Creator', after: `${creator.first_name} ${creator.last_name} (${shortAddress(creator.address)})` },
+                { label: 'Reason', after: reason },
+                ...(note ? [{ label: 'Note', after: note }] : []),
+              ],
               warning: 'They cannot join, and their places leave the programme until the exclusion is lifted.',
               danger: true,
-              run: () => excludeCreator(authenticatedFetch, excluding, { reason, note }),
+              success: 'Creator excluded',
+              run: () => excludeCreator(authenticatedFetch, creator.address, { reason, note }),
             })
           }}
         />
@@ -567,16 +859,18 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
   )
 }
 
+/* ---------------------------------- exclusions ---------------------------------- */
+
 const ExclusionsSection: FC<SectionProps & { exclusions: Exclusions }> = ({ exclusions, authenticatedFetch, ask }) => (
-  <Section title="Exclusions">
+  <Section title="Exclusions" hint="Lifting one puts the place or creator back from the next sweep.">
     <h3>Places</h3>
     <ul className="cf-list">
       {exclusions.places.map(exclusion => (
         <li key={exclusion.place_id}>
-          <div>
+          <div className="cf-list-main">
             <code>{exclusion.place_id}</code> <span className="cf-badge cf-badge-excluded">{exclusion.reason}</span>
             {exclusion.note && <p>{exclusion.note}</p>}
-            <span className="cf-muted">{formatDate(exclusion.added_at)}</span>
+            <span className="cf-muted">since {formatDate(exclusion.added_at)}</span>
           </div>
           <button
             className="cf-button-secondary"
@@ -584,7 +878,9 @@ const ExclusionsSection: FC<SectionProps & { exclusions: Exclusions }> = ({ excl
             onClick={() =>
               ask({
                 title: 'Lift place exclusion',
-                detail: exclusion.place_id,
+                confirmLabel: 'Lift',
+                changes: [{ label: 'Place', before: exclusion.reason, after: 'back in the programme' }],
+                success: 'Place exclusion lifted',
                 run: () => includePlace(authenticatedFetch, exclusion.place_id),
               })
             }
@@ -599,11 +895,11 @@ const ExclusionsSection: FC<SectionProps & { exclusions: Exclusions }> = ({ excl
     <ul className="cf-list">
       {exclusions.creators.map(exclusion => (
         <li key={exclusion.address}>
-          <div>
+          <div className="cf-list-main">
             <code title={exclusion.address}>{shortAddress(exclusion.address)}</code>{' '}
             <span className="cf-badge cf-badge-excluded">{exclusion.reason}</span>
             {exclusion.note && <p>{exclusion.note}</p>}
-            <span className="cf-muted">{formatDate(exclusion.added_at)}</span>
+            <span className="cf-muted">since {formatDate(exclusion.added_at)}</span>
           </div>
           <button
             className="cf-button-secondary"
@@ -611,7 +907,9 @@ const ExclusionsSection: FC<SectionProps & { exclusions: Exclusions }> = ({ excl
             onClick={() =>
               ask({
                 title: 'Lift creator exclusion',
-                detail: shortAddress(exclusion.address),
+                confirmLabel: 'Lift',
+                changes: [{ label: 'Creator', before: exclusion.reason, after: 'eligible again' }],
+                success: 'Creator exclusion lifted',
                 run: () => includeCreator(authenticatedFetch, exclusion.address),
               })
             }
@@ -625,6 +923,8 @@ const ExclusionsSection: FC<SectionProps & { exclusions: Exclusions }> = ({ excl
   </Section>
 )
 
+/* ---------------------------------- cycle snapshot ---------------------------------- */
+
 const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<string> }> = ({
   cycles,
   excluded,
@@ -635,7 +935,7 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
   const [cycleId, setCycleId] = useState<number | null>(latest?.id ?? null)
   // Keyed by cycle, so switching cycles shows "Loading…" without a reset inside the effect.
   const [loaded, setLoaded] = useState<{ cycleId: number; places?: AdminCyclePlace[]; error?: string } | null>(null)
-  const [excluding, setExcluding] = useState<string | null>(null)
+  const [excluding, setExcluding] = useState<AdminCyclePlace | null>(null)
   const places = loaded?.cycleId === cycleId ? loaded.places : undefined
   const error = loaded?.cycleId === cycleId ? loaded.error : undefined
 
@@ -656,7 +956,7 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
   if (cycles.length === 0) return null
 
   return (
-    <Section title="Cycle snapshot">
+    <Section title="Cycle snapshot" hint="Every creator's places as the sweep recorded them. Exclude a place from its row.">
       <div className="cf-toolbar">
         <select aria-label="Snapshot cycle" value={cycleId ?? ''} onChange={e => setCycleId(Number(e.target.value))}>
           {cycles.map(cycle => (
@@ -682,7 +982,7 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
           </thead>
           <tbody>
             {places.map(place => (
-              <tr key={`${place.place_id}:${place.address}`}>
+              <tr key={`${place.place_id}:${place.address}`} className={place.removed_at ? 'cf-row-muted' : ''}>
                 <td>
                   <strong>{place.title ?? place.place_id}</strong>
                   <br />
@@ -692,17 +992,19 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
                   <code title={place.address}>{shortAddress(place.address)}</code>
                 </td>
                 <td>
-                  <span className={`cf-badge cf-badge-${place.status}`}>{place.status}</span>
+                  <span className={`cf-badge cf-badge-${place.status}`}>{place.status.replace('_', ' ')}</span>
                   {place.reasons.length > 0 && <span className="cf-muted"> {place.reasons.join(', ')}</span>}
                 </td>
                 <td>{formatDate(place.first_seen_at)}</td>
                 <td>{formatDate(place.removed_at)}</td>
                 <td className="cf-row-actions">
-                  {!excluded.has(place.place_id) && (
+                  {excluded.has(place.place_id) ? (
+                    <span className="cf-badge cf-badge-excluded">excluded</span>
+                  ) : (
                     <button
-                      className="cf-button-secondary"
+                      className="cf-button-danger-outline"
                       aria-label={`Exclude place ${place.place_id}`}
-                      onClick={() => setExcluding(excluding === place.place_id ? null : place.place_id)}
+                      onClick={() => setExcluding(place)}
                     >
                       Exclude
                     </button>
@@ -713,7 +1015,7 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
             {places.length === 0 && (
               <tr>
                 <td colSpan={6} className="cf-empty">
-                  No places recorded for this cycle.
+                  No places recorded for this cycle yet. The sweep records them hourly, or run it below.
                 </td>
               </tr>
             )}
@@ -721,18 +1023,26 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
         </table>
       )}
       {excluding && (
-        <ExcludeForm
-          subject={excluding}
+        <ExcludeDialog
+          title="Exclude place"
+          subject={excluding.title ?? excluding.place_id}
           reasons={PLACE_REASONS}
-          onCancel={() => setExcluding(null)}
+          onClose={() => setExcluding(null)}
           onSubmit={(reason, note) => {
+            const place = excluding
             setExcluding(null)
             ask({
               title: 'Exclude place',
-              detail: `${excluding}: ${reason}`,
+              confirmLabel: 'Exclude',
+              changes: [
+                { label: 'Place', after: `${place.title ?? place.place_id} (${place.world ? place.world_name : place.base_position})` },
+                { label: 'Reason', after: reason },
+                ...(note ? [{ label: 'Note', after: note }] : []),
+              ],
               warning: 'The place leaves the programme for every owner until the exclusion is lifted.',
               danger: true,
-              run: () => excludePlace(authenticatedFetch, excluding, { reason, note }),
+              success: 'Place excluded',
+              run: () => excludePlace(authenticatedFetch, place.place_id, { reason, note }),
             })
           }}
         />
@@ -741,83 +1051,102 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
   )
 }
 
+/* ---------------------------------- sweep ---------------------------------- */
+
 const SweepSection: FC<SectionProps> = ({ authenticatedFetch, ask }) => {
   const [result, setResult] = useState<SweepResult | null>(null)
 
   return (
-    <Section title="Sweep">
-      <p className="cf-hint">
-        The hourly job that records every enrolled creator's places for the running cycle. Run it now after
-        publishing terms or changing exclusions, so the snapshot catches up without waiting.
-      </p>
-      <button
-        className="cf-button-primary"
-        onClick={() =>
-          ask({
-            title: 'Run the sweep now',
-            detail: 'Every enrolled creator is re-discovered. This can take a minute.',
-            run: () => runSweep(authenticatedFetch).then(setResult),
-          })
-        }
-      >
-        Run sweep
-      </button>
-      {result && (
+    <Section
+      title="Sweep"
+      hint="Records every enrolled creator's places for the running cycle. Runs hourly on its own; run it now after publishing terms or changing exclusions."
+      action={
+        <button
+          className="cf-button-secondary"
+          onClick={() =>
+            ask({
+              title: 'Run the sweep now',
+              confirmLabel: 'Run sweep',
+              changes: [{ label: 'Scope', after: 'every enrolled creator, running cycle only' }],
+              warning: 'This can take a minute with many creators.',
+              success: 'Sweep finished',
+              run: () => runSweep(authenticatedFetch).then(setResult),
+            })
+          }
+        >
+          Run sweep
+        </button>
+      }
+    >
+      {result ? (
         <p className="cf-muted">
           {result.status === 'skipped'
             ? `Skipped: ${result.reason === 'locked' ? 'another run holds the lock' : 'no cycle is running'}`
             : `Swept ${result.creators} creators: ${result.inserted} new, ${result.updated} updated, ${result.removed} removed, ${result.failures} failed`}
         </p>
+      ) : (
+        <p className="cf-muted">No run from this page yet.</p>
       )}
     </Section>
   )
 }
 
-function ExcludeForm<R extends string>({
+/* ---------------------------------- shared dialogs ---------------------------------- */
+
+function ExcludeDialog<R extends string>({
+  title,
   subject,
   reasons,
   onSubmit,
-  onCancel,
+  onClose,
 }: {
+  title: string
   subject: string
-  reasons: ReadonlyArray<{ value: R; label: string }>
+  reasons: ReadonlyArray<{ value: R; label: string; hint: string }>
   onSubmit: (reason: R, note: string | null) => void
-  onCancel: () => void
+  onClose: () => void
 }) {
   const [reason, setReason] = useState<R>(reasons[0].value)
   const [note, setNote] = useState('')
 
   return (
-    <div className="cf-form cf-exclude-form">
-      <span>
-        Exclude <code>{subject}</code>
-      </span>
-      <select aria-label="Exclusion reason" value={reason} onChange={e => setReason(e.target.value as R)}>
+    <Dialog title={title} onClose={onClose}>
+      <p className="cf-modal-subject">{subject}</p>
+      <div className="cf-choices" role="radiogroup" aria-label="Exclusion reason">
         {reasons.map(option => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
+          <label key={option.value} className={`cf-choice ${reason === option.value ? 'cf-choice-active' : ''}`}>
+            <input type="radio" name="reason" value={option.value} checked={reason === option.value} onChange={() => setReason(option.value)} />
+            <span>
+              <strong>{option.label}</strong>
+              <span className="cf-field-hint">{option.hint}</span>
+            </span>
+          </label>
         ))}
-      </select>
-      <input
-        aria-label="Exclusion note"
-        placeholder="Note for other admins (optional)"
-        value={note}
-        maxLength={500}
-        onChange={e => setNote(e.target.value)}
-      />
-      <button className="cf-button-secondary" onClick={onCancel}>
-        Cancel
-      </button>
-      <button className="cf-button-danger" onClick={() => onSubmit(reason, note.trim() === '' ? null : note.trim())}>
-        Exclude
-      </button>
-    </div>
+      </div>
+      <Field label="Note" hint="For other admins only. Never shown to the creator.">
+        <input
+          aria-label="Exclusion note"
+          placeholder="Why, and who decided"
+          value={note}
+          maxLength={500}
+          onChange={e => setNote(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onSubmit(reason, note.trim() === '' ? null : note.trim())}
+        />
+      </Field>
+      <div className="cf-modal-actions">
+        <button className="cf-button-secondary" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="cf-button-danger" onClick={() => onSubmit(reason, note.trim() === '' ? null : note.trim())}>
+          Review
+        </button>
+      </div>
+    </Dialog>
   )
 }
 
-const ConfirmDialog: FC<{
-  state: Exclude<ConfirmState, { status: 'idle' }>
+const ReviewDialog: FC<{
+  state: Exclude<ReviewState, { status: 'idle' }>
   onConfirm: () => void
   onCancel: () => void
 }> = ({ state, onConfirm, onCancel }) => {
@@ -825,21 +1154,33 @@ const ConfirmDialog: FC<{
   const saving = state.status === 'saving'
 
   return (
-    <div className="cf-modal-backdrop" onClick={saving ? undefined : onCancel}>
-      <div className="cf-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
-        <h3>{action.title}</h3>
-        <p>{action.detail}</p>
-        {action.warning && <div className="cf-warning">{action.warning}</div>}
-        {state.status === 'error' && <div className="cf-error">{state.message}</div>}
-        <div className="cf-modal-actions">
-          <button className="cf-button-secondary" onClick={onCancel} disabled={saving}>
-            Cancel
-          </button>
-          <button className={action.danger ? 'cf-button-danger' : 'cf-button-primary'} onClick={onConfirm} disabled={saving}>
-            {saving ? 'Saving…' : 'Confirm'}
-          </button>
-        </div>
+    <Dialog title={action.title} onClose={saving ? () => undefined : onCancel}>
+      <dl className="cf-changes">
+        {action.changes.map(change => (
+          <div key={change.label} className="cf-change">
+            <dt>{change.label}</dt>
+            <dd>
+              {change.before !== undefined && change.before !== change.after && (
+                <>
+                  <span className="cf-change-before">{change.before}</span>
+                  <span className="cf-change-arrow">→</span>
+                </>
+              )}
+              <span className="cf-change-after">{change.after}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {action.warning && <div className="cf-warning">{action.warning}</div>}
+      {state.status === 'error' && <div className="cf-error">{state.message}</div>}
+      <div className="cf-modal-actions">
+        <button className="cf-button-secondary" onClick={onCancel} disabled={saving}>
+          Cancel
+        </button>
+        <button className={action.danger ? 'cf-button-danger' : 'cf-button-primary'} onClick={onConfirm} disabled={saving} autoFocus>
+          {saving ? 'Saving…' : action.confirmLabel}
+        </button>
       </div>
-    </div>
+    </Dialog>
   )
 }
