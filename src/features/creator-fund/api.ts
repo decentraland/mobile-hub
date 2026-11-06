@@ -6,6 +6,10 @@ import { config } from '../../config'
 export const API_BASE: string =
   (import.meta.env.DEV && import.meta.env.VITE_CREATOR_FUND_API_URL) || config.get('CREATOR_FUND_API_URL')
 
+// creators-data has one deployment, on .zone, which the production hub uses; the dev hub sets no
+// URL and never shows the tab, so the backoffice is run from one place.
+export const CREATOR_FUND_ENABLED = API_BASE !== ''
+
 const ROOT = `${API_BASE}/v3/creator-fund`
 const ADMIN = `${ROOT}/admin`
 

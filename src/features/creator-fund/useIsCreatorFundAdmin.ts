@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../../contexts/auth'
 import { useAuthenticatedFetch } from '../../hooks/useAuthenticatedFetch'
 import { isDevMode } from '../../utils/devIdentity'
-import { isAdmin } from './api'
+import { CREATOR_FUND_ENABLED, isAdmin } from './api'
 
 /**
  * Whether the signed-in wallet may open the Creator Fund backoffice. Asked of the service on every
@@ -15,6 +15,7 @@ export function useIsCreatorFundAdmin(): boolean {
   const [admin, setAdmin] = useState(false)
 
   useEffect(() => {
+    if (!CREATOR_FUND_ENABLED) return
     let cancelled = false
     const allowed = isSignedIn || isDevMode() ? isAdmin(authenticatedFetch).catch(() => false) : Promise.resolve(false)
     allowed.then(value => {

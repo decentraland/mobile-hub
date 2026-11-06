@@ -131,6 +131,8 @@ The **Creator Fund** tab is the backoffice for creators-data's `/v3/creator-fund
 
 On localhost the dev identity signs the requests, so that wallet (`0xf39F…2266`) has to be on the local service's admin list.
 
+creators-data has a single deployment, `creators-data.decentraland.zone`, so the production hub is the one that talks to it (`prd.json`) and the dev hub leaves `CREATOR_FUND_API_URL` empty, which hides the tab and sends nothing. A source build with `VITE_CREATOR_FUND_API_URL` set still gets the tab.
+
 ---
 
 ## API Integration

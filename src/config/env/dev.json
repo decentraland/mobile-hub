@@ -4,5 +4,5 @@
   "AUTH_URL": "https://decentraland.zone/auth",
   "PEER_URL": "https://peer.decentraland.zone",
   "MOBILE_BFF_URL": "https://mobile-bff.decentraland.zone",
-  "CREATOR_FUND_API_URL": "https://creators-data.decentraland.zone"
+  "CREATOR_FUND_API_URL": ""
 }
