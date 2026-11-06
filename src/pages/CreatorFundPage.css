@@ -1,0 +1,318 @@
+.cf-page {
+  position: fixed;
+  inset: 0;
+  background: #1a1a1a;
+  padding-top: 80px;
+  overflow-y: auto;
+}
+
+.cf-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.cf-header h1 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.cf-header p,
+.cf-hint {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.cf-section {
+  margin-top: 32px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.cf-section h2 {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.cf-section h3 {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 12px 0 6px;
+}
+
+.cf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.cf-table th,
+.cf-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  vertical-align: top;
+}
+
+.cf-table th {
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.cf-row-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.cf-row-actions button + button {
+  margin-left: 6px;
+}
+
+.cf-empty {
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  padding: 16px;
+}
+
+.cf-list {
+  list-style: none;
+}
+
+.cf-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.cf-list li p {
+  color: rgba(255, 255, 255, 0.6);
+  margin: 4px 0;
+  white-space: pre-wrap;
+}
+
+.cf-muted {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+}
+
+.cf-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  margin-right: 4px;
+}
+
+.cf-badge-running,
+.cf-badge-active,
+.cf-badge-in_program {
+  background: rgba(0, 217, 255, 0.15);
+  color: #00d9ff;
+}
+
+.cf-badge-upcoming {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+}
+
+.cf-badge-suspended,
+.cf-badge-excluded,
+.cf-badge-not_eligible {
+  background: rgba(255, 68, 68, 0.15);
+  color: #ff6b6b;
+}
+
+.cf-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cf-toolbar input {
+  flex: 1;
+}
+
+.cf-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.cf-form-column {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cf-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.cf-exclude-form {
+  align-items: center;
+  padding: 10px;
+  background: rgba(255, 68, 68, 0.06);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.cf-page input,
+.cf-page select,
+.cf-page textarea {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.cf-page textarea {
+  resize: vertical;
+}
+
+.cf-details summary {
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+}
+
+.cf-pre {
+  margin-top: 8px;
+  padding: 12px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.cf-button-primary,
+.cf-button-secondary,
+.cf-button-danger {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cf-button-primary {
+  background: #00d9ff;
+  color: #0b1b1f;
+}
+
+.cf-button-secondary {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.cf-button-danger {
+  background: rgba(255, 68, 68, 0.2);
+  border-color: rgba(255, 68, 68, 0.4);
+  color: #ff6b6b;
+}
+
+.cf-page button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cf-link-button {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 13px;
+  padding: 0;
+}
+
+.cf-loading {
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  padding: 32px;
+}
+
+.cf-error {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 13px;
+}
+
+.cf-warning {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.25);
+  border-radius: 8px;
+  color: #ffc107;
+  font-size: 13px;
+}
+
+.cf-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.cf-modal {
+  width: min(480px, 90vw);
+  padding: 24px;
+  background: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cf-modal h3 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.cf-modal p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+.cf-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}

@@ -3,5 +3,6 @@
   "ENVIRONMENT": "production",
   "AUTH_URL": "https://decentraland.org/auth",
   "PEER_URL": "https://peer.decentraland.org",
-  "MOBILE_BFF_URL": "https://mobile-bff.decentraland.org"
+  "MOBILE_BFF_URL": "https://mobile-bff.decentraland.org",
+  "CREATOR_FUND_API_URL": "https://creators-data.decentraland.org"
 }
