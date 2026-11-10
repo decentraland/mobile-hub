@@ -127,7 +127,7 @@ Set `VITE_REACT_APP_DCL_DEFAULT_ENV` to control the environment:
 
 ## Creator Fund
 
-The **Creator Fund** tab is the backoffice for creators-data's `/v3/creator-fund/admin/*`: cycles (a closed one cannot be deleted), terms, news, enrolled creators (with CSV export, suspension and exclusion), place exclusions per cycle snapshot, and a sweep on demand. The tab appears only when `GET /admin/me` answers 200 for the signed-in wallet, which the service decides from its own admin list; anyone else gets a 403 and no tab. Every write asks for confirmation, is signed with `hashPayload` over the body, and is recorded by the service with the admin's wallet.
+The **Creator Fund** tab is the backoffice for creators-data's `/v3/creator-fund/admin/*`: cycles, terms, news, enrolled creators (with CSV export, suspension and exclusion), place exclusions per cycle snapshot, and a sweep on demand. The tab appears only when `GET /admin/me` answers 200 for the signed-in wallet, which the service decides from its own admin list; anyone else gets a 403 and no tab. Every write asks for confirmation, is signed with `hashPayload` over the body, and is recorded by the service with the admin's wallet.
 
 On localhost the dev identity signs the requests, so that wallet (`0xf39F…2266`) has to be on the local service's admin list.
 

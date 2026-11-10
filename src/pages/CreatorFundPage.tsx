@@ -23,6 +23,7 @@ import {
   type AuthenticatedFetch,
   type CreatorExclusionReason,
   type Cycle,
+  type CycleStatus,
   type Exclusions,
   type NewsItem,
   type PlaceExclusionReason,
@@ -288,13 +289,19 @@ const Field: FC<{ label: string; hint?: string; error?: string | null; children:
 
 /* ---------------------------------- cycles ---------------------------------- */
 
+const DELETE_WARNINGS: Record<CycleStatus, string | undefined> = {
+  upcoming: undefined,
+  running: 'This cycle is running: creators lose it, and every place recorded for it is deleted.',
+  closed: 'This cycle is closed: its snapshot is the record the payout is computed from, and it is deleted with it.',
+}
+
 const CyclesSection: FC<SectionProps & { cycles: Cycle[] }> = ({ cycles, authenticatedFetch, ask }) => {
   const [editing, setEditing] = useState<Cycle | 'new' | null>(null)
 
   return (
     <Section
       title="Cycles"
-      hint="A cycle's status comes from its dates. Creators see the running one; closed ones are frozen snapshots and cannot be deleted."
+      hint="A cycle's status comes from its dates. Creators see the running one; closed ones are frozen snapshots."
       action={
         <button className="cf-button-primary" onClick={() => setEditing('new')}>
           New cycle
@@ -326,28 +333,23 @@ const CyclesSection: FC<SectionProps & { cycles: Cycle[] }> = ({ cycles, authent
                 <button className="cf-button-secondary" aria-label={`Edit cycle ${cycle.id}`} onClick={() => setEditing(cycle)}>
                   Edit
                 </button>
-                {cycle.status !== 'closed' && (
-                  <button
-                    className="cf-button-danger-outline"
-                    aria-label={`Delete cycle ${cycle.id}`}
-                    onClick={() =>
-                      ask({
-                        title: `Delete cycle ${cycle.id}`,
-                        confirmLabel: 'Delete cycle',
-                        changes: [{ label: 'Cycle', before: `${formatDate(cycle.start_at)} → ${formatDate(cycle.end_at)}`, after: 'removed' }],
-                        warning:
-                          cycle.status === 'running'
-                            ? 'This cycle is running: creators lose it, and every place recorded for it is deleted.'
-                            : undefined,
-                        danger: true,
-                        success: `Cycle ${cycle.id} deleted`,
-                        run: () => deleteCycle(authenticatedFetch, cycle.id),
-                      })
-                    }
-                  >
-                    Delete
-                  </button>
-                )}
+                <button
+                  className="cf-button-danger-outline"
+                  aria-label={`Delete cycle ${cycle.id}`}
+                  onClick={() =>
+                    ask({
+                      title: `Delete cycle ${cycle.id}`,
+                      confirmLabel: 'Delete cycle',
+                      changes: [{ label: 'Cycle', before: `${formatDate(cycle.start_at)} → ${formatDate(cycle.end_at)}`, after: 'removed' }],
+                      warning: DELETE_WARNINGS[cycle.status],
+                      danger: true,
+                      success: `Cycle ${cycle.id} deleted`,
+                      run: () => deleteCycle(authenticatedFetch, cycle.id),
+                    })
+                  }
+                >
+                  Delete
+                </button>
               </td>
             </tr>
           ))}
