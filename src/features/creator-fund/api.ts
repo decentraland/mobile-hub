@@ -189,6 +189,10 @@ export const getCyclePlaces = (authenticatedFetch: AuthenticatedFetch, cycleId: 
 export const putCycle = (authenticatedFetch: AuthenticatedFetch, id: number, input: CycleInput): Promise<Cycle> =>
   putJson<Cycle>(authenticatedFetch, `${ADMIN}/cycles/${id}`, input)
 
+/** Takes the cycle's snapshot rows with it, a closed one's payout record included. */
+export const deleteCycle = (authenticatedFetch: AuthenticatedFetch, id: number): Promise<void> =>
+  del(authenticatedFetch, `${ADMIN}/cycles/${id}`)
+
 export const publishTerms = (
   authenticatedFetch: AuthenticatedFetch,
   version: number,
