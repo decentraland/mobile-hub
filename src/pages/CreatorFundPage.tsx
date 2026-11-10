@@ -1,7 +1,6 @@
 import { useEffect, useState, type FC, type ReactNode } from 'react'
 import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch'
 import {
-  deleteCycle,
   deleteNews,
   excludeCreator,
   excludePlace,
@@ -23,7 +22,6 @@ import {
   type AuthenticatedFetch,
   type CreatorExclusionReason,
   type Cycle,
-  type CycleStatus,
   type Exclusions,
   type NewsItem,
   type PlaceExclusionReason,
@@ -289,12 +287,6 @@ const Field: FC<{ label: string; hint?: string; error?: string | null; children:
 
 /* ---------------------------------- cycles ---------------------------------- */
 
-const DELETE_WARNINGS: Record<CycleStatus, string | undefined> = {
-  upcoming: undefined,
-  running: 'This cycle is running: creators lose it, and every place recorded for it is deleted.',
-  closed: 'This cycle is closed: its snapshot is the record the payout is computed from, and it is deleted with it.',
-}
-
 const CyclesSection: FC<SectionProps & { cycles: Cycle[] }> = ({ cycles, authenticatedFetch, ask }) => {
   const [editing, setEditing] = useState<Cycle | 'new' | null>(null)
 
@@ -332,23 +324,6 @@ const CyclesSection: FC<SectionProps & { cycles: Cycle[] }> = ({ cycles, authent
               <td className="cf-row-actions">
                 <button className="cf-button-secondary" aria-label={`Edit cycle ${cycle.id}`} onClick={() => setEditing(cycle)}>
                   Edit
-                </button>
-                <button
-                  className="cf-button-danger-outline"
-                  aria-label={`Delete cycle ${cycle.id}`}
-                  onClick={() =>
-                    ask({
-                      title: `Delete cycle ${cycle.id}`,
-                      confirmLabel: 'Delete cycle',
-                      changes: [{ label: 'Cycle', before: `${formatDate(cycle.start_at)} → ${formatDate(cycle.end_at)}`, after: 'removed' }],
-                      warning: DELETE_WARNINGS[cycle.status],
-                      danger: true,
-                      success: `Cycle ${cycle.id} deleted`,
-                      run: () => deleteCycle(authenticatedFetch, cycle.id),
-                    })
-                  }
-                >
-                  Delete
                 </button>
               </td>
             </tr>
@@ -941,9 +916,7 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
   ask,
 }) => {
   const latest = cycles.find(cycle => cycle.status === 'running') ?? cycles[cycles.length - 1]
-  const [chosenId, setChosenId] = useState<number | null>(latest?.id ?? null)
-  // The chosen cycle may have been deleted since; the select then falls back to the latest one.
-  const cycleId = cycles.some(cycle => cycle.id === chosenId) ? chosenId : (latest?.id ?? null)
+  const [cycleId, setCycleId] = useState<number | null>(latest?.id ?? null)
   // Keyed by cycle, so switching cycles shows "Loading…" without a reset inside the effect.
   const [loaded, setLoaded] = useState<{ cycleId: number; places?: AdminCyclePlace[]; error?: string } | null>(null)
   const [excluding, setExcluding] = useState<AdminCyclePlace | null>(null)
@@ -972,7 +945,7 @@ const CyclePlacesSection: FC<SectionProps & { cycles: Cycle[]; excluded: Set<str
       hint="Every owned place as the join and the sweep recorded it. Collaborator places never earn, so they are not here. Exclude a place from its row."
     >
       <div className="cf-toolbar">
-        <select aria-label="Snapshot cycle" value={cycleId ?? ''} onChange={e => setChosenId(Number(e.target.value))}>
+        <select aria-label="Snapshot cycle" value={cycleId ?? ''} onChange={e => setCycleId(Number(e.target.value))}>
           {cycles.map(cycle => (
             <option key={cycle.id} value={cycle.id}>
               Cycle {cycle.id} ({cycle.status}): {formatDate(cycle.start_at)} → {formatDate(cycle.end_at)}
