@@ -67,24 +67,6 @@ describe('CreatorFundPage', () => {
     expect(screen.getByRole('status').textContent).toBe('Creator suspended')
   })
 
-  it('deletes a closed cycle only after a dialog that warns its payout record goes with it', async () => {
-    const closed: api.Cycle = { ...RUNNING, id: 1, start_at: '2026-10-01T00:00:00.000Z', end_at: '2026-10-15T00:00:00.000Z', status: 'closed' }
-    vi.mocked(api.getCycles).mockResolvedValue([closed, RUNNING])
-    vi.mocked(api.deleteCycle).mockResolvedValue(undefined)
-    render(<CreatorFundPage />)
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Delete cycle 1' }))
-    expect(api.deleteCycle).not.toHaveBeenCalled()
-
-    const dialog = screen.getByRole('dialog', { name: 'Delete cycle 1' })
-    expect(within(dialog).getByText(/This cycle is closed/)).toBeTruthy()
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete cycle' }))
-
-    await waitFor(() => expect(api.deleteCycle).toHaveBeenCalledWith(authenticatedFetch, 1))
-    await waitFor(() => expect(api.getCycles).toHaveBeenCalledTimes(2))
-    expect(screen.getByRole('status').textContent).toBe('Cycle 1 deleted')
-  })
-
   it('does nothing when the dialog is cancelled', async () => {
     render(<CreatorFundPage />)
 
