@@ -67,6 +67,25 @@ describe('CreatorFundPage', () => {
     expect(screen.getByRole('status').textContent).toBe('Creator suspended')
   })
 
+  it('deletes a cycle only after the confirm dialog, and offers no delete for a closed one', async () => {
+    const closed: api.Cycle = { ...RUNNING, id: 1, start_at: '2026-10-01T00:00:00.000Z', end_at: '2026-10-15T00:00:00.000Z', status: 'closed' }
+    vi.mocked(api.getCycles).mockResolvedValue([closed, RUNNING])
+    vi.mocked(api.deleteCycle).mockResolvedValue(undefined)
+    render(<CreatorFundPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete cycle 2' }))
+    expect(screen.queryByRole('button', { name: 'Delete cycle 1' })).toBeNull()
+    expect(api.deleteCycle).not.toHaveBeenCalled()
+
+    const dialog = screen.getByRole('dialog', { name: 'Delete cycle 2' })
+    expect(within(dialog).getByText(/This cycle is running/)).toBeTruthy()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete cycle' }))
+
+    await waitFor(() => expect(api.deleteCycle).toHaveBeenCalledWith(authenticatedFetch, 2))
+    await waitFor(() => expect(api.getCycles).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('status').textContent).toBe('Cycle 2 deleted')
+  })
+
   it('does nothing when the dialog is cancelled', async () => {
     render(<CreatorFundPage />)
 
