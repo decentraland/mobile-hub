@@ -2,12 +2,9 @@ import { useState } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { ChainId } from '@dcl/schemas'
 import { AuthProvider } from './contexts/auth'
-import { BansProvider } from './features/map/context/BansContext'
 import { Navbar } from './components/Navbar'
 import { AppTabs, type AppView } from './components/AppTabs'
-import { MapPage } from './pages/MapPage'
-import { WorldsPage } from './pages/WorldsPage'
-import { CurationPage } from './pages/CurationPage'
+import { PlacesPage } from './pages/PlacesPage'
 import { VersionsPage } from './pages/VersionsPage'
 import { FeatureFlagsPage } from './pages/FeatureFlagsPage'
 import { DeviceSupportPage } from './pages/DeviceSupportPage'
@@ -26,11 +23,11 @@ const basename = /^decentraland.(zone|org|today)$/.test(window.location.host) ? 
 
 // Below the providers, so the admin gate can read the auth context.
 function Hub() {
-  const [activeView, setActiveView] = useState<AppView>('map')
+  const [activeView, setActiveView] = useState<AppView>('places')
   const isCreatorFundAdmin = useIsCreatorFundAdmin()
 
   return (
-    <BansProvider>
+    <>
       <Navbar
         tabs={
           <AppTabs
@@ -40,16 +37,14 @@ function Hub() {
           />
         }
       />
-      {activeView === 'map' && <MapPage />}
-      {activeView === 'worlds' && <WorldsPage />}
-      {activeView === 'curation' && <CurationPage />}
+      {activeView === 'places' && <PlacesPage />}
       {activeView === 'versions' && <VersionsPage />}
       {activeView === 'flags' && <FeatureFlagsPage />}
       {activeView === 'devices' && <DeviceSupportPage />}
       {activeView === 'campaigns' && <CampaignsPage />}
       {activeView === 'push' && <PushPage />}
       {activeView === 'creator-fund' && isCreatorFundAdmin && <CreatorFundPage />}
-    </BansProvider>
+    </>
   )
 }
 

@@ -4,10 +4,10 @@ import { AppTabs } from './AppTabs'
 
 describe('AppTabs', () => {
   it('shows the Creator Fund tab only when the service says the wallet is an admin', () => {
-    const { rerender } = render(<AppTabs activeView="map" onViewChange={vi.fn()} />)
+    const { rerender } = render(<AppTabs activeView="places" onViewChange={vi.fn()} />)
     expect(screen.queryByRole('button', { name: 'Creator Fund' })).toBeNull()
 
-    rerender(<AppTabs activeView="map" onViewChange={vi.fn()} showCreatorFund />)
+    rerender(<AppTabs activeView="places" onViewChange={vi.fn()} showCreatorFund />)
     expect(screen.getByRole('button', { name: 'Creator Fund' })).toBeTruthy()
   })
 })
