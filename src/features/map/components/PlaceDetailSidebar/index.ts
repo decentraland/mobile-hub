@@ -1,1 +1,0 @@
-export { PlaceDetailSidebar } from './PlaceDetailSidebar'

@@ -2,9 +2,7 @@ import type { FC } from 'react'
 import './AppTabs.css'
 
 export type AppView =
-  | 'map'
-  | 'worlds'
-  | 'curation'
+  | 'places'
   | 'versions'
   | 'flags'
   | 'devices'
@@ -23,22 +21,10 @@ export const AppTabs: FC<AppTabsProps> = ({ activeView, onViewChange, showCreato
   return (
     <div className="app-tabs">
       <button
-        className={`app-tab ${activeView === 'map' ? 'app-tab-active' : ''}`}
-        onClick={() => onViewChange('map')}
+        className={`app-tab ${activeView === 'places' ? 'app-tab-active' : ''}`}
+        onClick={() => onViewChange('places')}
       >
-        Map
-      </button>
-      <button
-        className={`app-tab ${activeView === 'worlds' ? 'app-tab-active' : ''}`}
-        onClick={() => onViewChange('worlds')}
-      >
-        Worlds
-      </button>
-      <button
-        className={`app-tab ${activeView === 'curation' ? 'app-tab-active' : ''}`}
-        onClick={() => onViewChange('curation')}
-      >
-        Curation
+        Places
       </button>
       <button
         className={`app-tab ${activeView === 'versions' ? 'app-tab-active' : ''}`}

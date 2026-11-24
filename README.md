@@ -1,22 +1,20 @@
 
 # Mobile Curation
 
-A web application for curating and managing Decentraland parcels and scene groups on mobile devices.
+A web application for curating Decentraland scenes for the mobile apps.
 
 ## Features
 
-### Map View
-- Interactive canvas-based map rendering of Decentraland's Genesis City
-- Satellite tile images from the [genesis-city repository](https://github.com/decentraland/genesis-city)
-- Pan and zoom controls with mouse/touch support
-- Hover coordinates display
-- Click-to-select parcels
-
-### Scene Groups
-- Create, view, edit, and delete groups of parcels
-- Visual selection of parcels on the map
-- Floating top bar for mode selection (View/Create/Edit/Delete)
-- Persisted to backend API (mobile-bff)
+### Places
+- One search across every place in Genesis City and every World: by name, world (`name.dcl.eth`) or parcel (`x,y`), read through mobile-bff's `/destinations` proxy of the Places API
+- Every tag listed with how many places carry it; filter by one tag at a time, or by "No iOS status" to find places nobody has decided on
+- Per-place controls for the tags the apps read:
+  - **iOS**: Allowed (`allowed_ios`) or Banned (`banned_ios`), exclusive
+  - **★ Featured** (`featured`): the Discover featured carousel; `ftue` fills the first-time user one
+- Any other tag added or removed per place
+- Bulk actions on selected places (allow, ban, clear iOS, feature, add or remove a tag), each confirmed first
+- Export CSV of the places shown (filter by `allowed_ios` for the iOS list)
+- Tags are stored as mobile-bff places (`/backoffice/places`); the first tag on a place creates its record
 
 ### Authentication
 - Decentraland SSO integration via `@dcl/single-sign-on-client`
@@ -37,41 +35,16 @@ A web application for curating and managing Decentraland parcels and scene group
 
 ```
 src/
-├── components/
-│   └── Navbar/               # Decentraland navbar with auth
-├── config/
-│   ├── env/
-│   │   ├── dev.json          # Development config (MOBILE_BFF_URL, etc.)
-│   │   └── prd.json          # Production config
-│   └── index.ts              # Config loader
-├── contexts/
-│   └── auth/
-│       ├── AuthProvider.tsx  # Auth context provider
-│       ├── types.ts          # Auth types
-│       ├── utils.ts          # Auth utilities
-│       └── index.ts
+├── components/               # Navbar, AppTabs
+├── config/env/               # dev.json / prd.json (MOBILE_BFF_URL, etc.)
+├── contexts/auth/            # Auth context provider
 ├── features/
-│   └── map/
-│       ├── api/
-│       │   └── sceneGroupsApi.ts  # Scene groups API client
-│       ├── components/
-│       │   ├── GroupsSidebar/     # Scene groups sidebar UI
-│       │   ├── MapCanvas.tsx      # Canvas rendering
-│       │   └── ...
-│       ├── context/
-│       │   ├── GroupsContext.tsx  # Scene groups state + API
-│       │   ├── MapContext.tsx     # Map viewport state
-│       │   └── useGroupsHooks.ts  # Custom hooks
-│       ├── types/
-│       │   └── index.ts           # Type definitions
-│       └── utils/
-│           └── groupUtils.ts      # Group utilities
-├── hooks/
-│   └── useAuthenticatedFetch.ts   # Authenticated fetch hook
-├── pages/
-│   └── MapPage.tsx                # Main map view
-├── utils/
-│   └── fetch.ts                   # signedFetch implementation
+│   ├── places/               # mobile-bff places + tags API
+│   ├── scenes/               # Places tab: Places API search, matching, tag rules, CSV
+│   └── ...                   # one folder per tab (flags, campaigns, push, ...)
+├── hooks/useAuthenticatedFetch.ts
+├── pages/                    # One page per tab (PlacesPage, PushPage, ...)
+├── utils/fetch.ts            # signedFetch implementation
 └── App.tsx
 ```
 
@@ -137,40 +110,24 @@ creators-data has a single deployment, `creators-data.decentraland.zone`, so the
 
 ## API Integration
 
-Scene groups are persisted to the [mobile-bff](../mobile-bff) backend.
+Place tags are persisted to the [mobile-bff](../mobile-bff) backend.
 
 ### Backend API (mobile-bff)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/backoffice/scene-groups` | List all scene groups |
-| POST | `/backoffice/scene-groups` | Create a new scene group |
-| PUT | `/backoffice/scene-groups/:id` | Update a scene group |
-| DELETE | `/backoffice/scene-groups/:id` | Delete a scene group |
+| GET | `/destinations?search=…` | Search Genesis City and Worlds (Places API proxy) |
+| GET | `/backoffice/places` | List every place with tags |
+| POST | `/backoffice/places` | Create the record for a place's first tag |
+| PUT | `/backoffice/places/:id` | Replace a place's tags |
+| GET | `/tags` | Known tag names |
 
 All backoffice endpoints require:
 1. Signed requests via `signedFetch`
 2. Wallet address in `ALLOWED_USERS` env var on the backend
 
-### Frontend Implementation
-
-- **API Client**: `src/features/map/api/sceneGroupsApi.ts`
-- **State Management**: `src/features/map/context/GroupsContext.tsx`
-- **Hooks**: `useGroupsState()`, `useGroupsDispatch()`, `useGroupsApi()`
-
-Groups are loaded automatically when a user signs in.
-
 ### Configuration
 
 Set `MOBILE_BFF_URL` in config files:
-- `src/config/env/dev.json` - Development (localhost:3000)
+- `src/config/env/dev.json` - Development
 - `src/config/env/prd.json` - Production
-
----
-
-## Future Enhancements
-
-- [ ] **Parcel metadata fetching** - Load parcel names/descriptions from Decentraland API
-- [ ] **Scene preview** - Show scene thumbnails when hovering groups
-- [ ] **Sharing** - Generate shareable links for scene groups
-- [ ] **Offline mode** - Cache groups locally when offline

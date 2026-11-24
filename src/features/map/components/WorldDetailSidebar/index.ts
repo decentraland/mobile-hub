@@ -1,1 +1,0 @@
-export { WorldDetailSidebar } from './WorldDetailSidebar'

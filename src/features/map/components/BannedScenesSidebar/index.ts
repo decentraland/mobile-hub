@@ -1,1 +1,0 @@
-export { BannedScenesSidebar } from './BannedScenesSidebar';
