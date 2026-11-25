@@ -158,7 +158,7 @@ describe('PlacesPage', () => {
     const chips = within(screen.getByRole('group', { name: 'Filter by tag' }))
       .getAllByRole('button')
       .map(b => b.textContent)
-    expect(chips).toEqual(['allowed_ios1', 'banned_ios1', 'featured1', 'ftue0', 'rod0', 'No iOS status'])
+    expect(chips).toEqual(['banned0', 'allowed_ios1', 'banned_ios1', 'featured1', 'ftue0', 'rod0', 'No iOS status'])
   })
 
   // The point of the tab: find any scene, even one nobody tagged yet, and allow it in one click
@@ -252,6 +252,24 @@ describe('PlacesPage', () => {
 
     expect(mockUpdatePlace).toHaveBeenCalledWith(authenticatedFetch, 'p-boedo', { tags: ['banned_ios', 'featured'] })
     expect(await screen.findByText('Featured but not allowed on iOS')).toBeTruthy()
+  })
+
+  it('bans a place on Android and iOS from its row, keeping its iOS choice', async () => {
+    const user = userEvent.setup()
+    mockUpdatePlace.mockResolvedValue({ ...PLAZA_PLACE, tags: ['allowed_ios', 'featured', 'banned'] })
+    render(<PlacesPage />)
+    await screen.findByText('Genesis Plaza')
+    const ban = () => screen.getByRole('button', { name: 'Banned on Android and iOS: Genesis Plaza' })
+    expect(ban().getAttribute('aria-pressed')).toBe('false')
+
+    await user.click(ban())
+
+    expect(mockUpdatePlace).toHaveBeenCalledWith(authenticatedFetch, 'p-plaza', {
+      tags: ['allowed_ios', 'featured', 'banned'],
+    })
+    await waitFor(() => expect(ban().getAttribute('aria-pressed')).toBe('true'))
+    expect(iosGroup('Genesis Plaza').getByRole('button', { name: 'Allowed' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByRole('button', { name: 'Remove banned from Genesis Plaza' })).toBeNull()
   })
 
   // Replaces the Curation tab's "Export iOS CSV": same columns and file name
