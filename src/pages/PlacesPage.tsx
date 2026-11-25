@@ -65,6 +65,13 @@ const NO_KEYS: ReadonlySet<string> = new Set()
 const NO_ROWS: ReadonlyMap<string, SceneRow> = new Map()
 const TAG_MEANING = new Map(APP_TAGS.map(({ tag, meaning }) => [tag, meaning]))
 
+// The tags with an on/off toggle on each row, outside the iOS box
+const FLAG_CONTROLS = [
+  { tag: FEATURED_TAG, label: '★ Featured', name: 'Featured' },
+  { tag: FTUE_TAG, label: '✦ FTUE', name: 'FTUE' },
+  { tag: BANNED_TAG, label: '⊘ Banned', name: 'Banned on Android and iOS' },
+]
+
 // The Places site lives next to the auth app: decentraland.org in production, .zone in dev
 function siteOrigin(): string {
   try {
@@ -684,7 +691,6 @@ const SceneRowItem: FC<{
   const tags = rowTags(row)
   const status = iosStatus(tags)
   const ruleBlock = iosRuleBlock(row.info)
-  const featured = tags.includes(FEATURED_TAG)
   const banned = tags.includes(BANNED_TAG)
   const otherTags = tags.filter(t => !hasOwnControl(t))
   const title = rowTitle(row)
@@ -811,50 +817,48 @@ const SceneRowItem: FC<{
       </div>
 
       <div className="place-controls">
-      <button
-        className={`place-feature ${featured ? 'place-feature-on' : ''}`}
-        aria-pressed={featured}
-        aria-label={`Featured: ${title}`}
-        title={TAG_MEANING.get(FEATURED_TAG)}
-        disabled={disabled}
-        onClick={() => onSetTags(withFlag(tags, FEATURED_TAG, !featured))}
-      >
-        ★ Featured
-      </button>
-      <button
-        className={`place-ban ${banned ? 'place-ban-on' : ''}`}
-        aria-pressed={banned}
-        aria-label={`Banned on Android and iOS: ${title}`}
-        title={TAG_MEANING.get(BANNED_TAG)}
-        disabled={disabled}
-        onClick={() => onSetTags(withFlag(tags, BANNED_TAG, !banned))}
-      >
-        ⊘ Banned
-      </button>
-      <div
-        className={`place-ios ${status === 'conflict' ? 'place-ios-conflict' : ''}`}
-        role="group"
-        aria-label={`iOS status for ${title}`}
-        title={status === 'conflict' ? `Has both ${IOS_ALLOWED_TAG} and ${IOS_BANNED_TAG}: pick one` : undefined}
-      >
-        <span className="place-ios-label">iOS</span>
-        <button
-          className={`place-ios-button place-ios-allowed ${status === 'allowed' || status === 'conflict' ? 'place-ios-on' : ''}`}
-          aria-pressed={status === 'allowed' || status === 'conflict'}
-          disabled={disabled}
-          onClick={() => toggleIos('allowed')}
+        <div className="place-flags">
+          {FLAG_CONTROLS.map(({ tag, label, name }) => {
+            const on = tags.includes(tag)
+            return (
+              <button
+                key={tag}
+                className={`place-flag place-flag-${tag} ${on ? 'place-flag-on' : ''}`}
+                aria-pressed={on}
+                aria-label={`${name}: ${title}`}
+                title={TAG_MEANING.get(tag)}
+                disabled={disabled}
+                onClick={() => onSetTags(withFlag(tags, tag, !on))}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        <div
+          className={`place-ios ${status === 'conflict' ? 'place-ios-conflict' : ''}`}
+          role="group"
+          aria-label={`iOS status for ${title}`}
+          title={status === 'conflict' ? `Has both ${IOS_ALLOWED_TAG} and ${IOS_BANNED_TAG}: pick one` : undefined}
         >
-          Allowed
-        </button>
-        <button
-          className={`place-ios-button place-ios-banned ${status === 'banned' || status === 'conflict' ? 'place-ios-on' : ''}`}
-          aria-pressed={status === 'banned' || status === 'conflict'}
-          disabled={disabled}
-          onClick={() => toggleIos('banned')}
-        >
-          Banned
-        </button>
-      </div>
+          <span className="place-ios-label">iOS</span>
+          <button
+            className={`place-ios-button place-ios-allowed ${status === 'allowed' || status === 'conflict' ? 'place-ios-on' : ''}`}
+            aria-pressed={status === 'allowed' || status === 'conflict'}
+            disabled={disabled}
+            onClick={() => toggleIos('allowed')}
+          >
+            Allowed
+          </button>
+          <button
+            className={`place-ios-button place-ios-banned ${status === 'banned' || status === 'conflict' ? 'place-ios-on' : ''}`}
+            aria-pressed={status === 'banned' || status === 'conflict'}
+            disabled={disabled}
+            onClick={() => toggleIos('banned')}
+          >
+            Banned
+          </button>
+        </div>
       </div>
     </li>
   )

@@ -78,7 +78,7 @@ export function isIosTag(tag: string): boolean {
 
 /** Tags with their own control on each row; the rest show as removable chips. */
 export function hasOwnControl(tag: string): boolean {
-  return isIosTag(tag) || tag === FEATURED_TAG || tag === BANNED_TAG
+  return isIosTag(tag) || tag === FEATURED_TAG || tag === FTUE_TAG || tag === BANNED_TAG
 }
 
 export function normalizeTag(raw: string): string {

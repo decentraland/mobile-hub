@@ -451,12 +451,17 @@
 .place-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
-.place-feature,
-.place-ban {
-  padding: 6px 12px;
+.place-flags {
+  display: flex;
+  gap: 4px;
+}
+
+.place-flag {
+  padding: 4px 9px;
+  line-height: 16px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
@@ -467,43 +472,62 @@
   white-space: nowrap;
 }
 
-.place-feature:hover:not(:disabled),
-.place-ban:hover:not(:disabled) {
+.place-flag:hover:not(:disabled) {
   color: rgba(255, 255, 255, 0.85);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-.place-feature-on {
+.place-flag:disabled {
+  cursor: not-allowed;
+}
+
+.place-flag-featured.place-flag-on {
   background: rgba(255, 193, 7, 0.15);
   border-color: rgba(255, 193, 7, 0.55);
   color: #ffc107;
 }
 
-.place-ban-on {
+.place-flag-ftue.place-flag-on {
+  background: rgba(0, 188, 212, 0.15);
+  border-color: rgba(0, 188, 212, 0.55);
+  color: #4dd0e1;
+}
+
+.place-flag-banned.place-flag-on {
   background: rgba(255, 68, 68, 0.15);
   border-color: rgba(255, 68, 68, 0.55);
   color: #ff6b6b;
 }
 
-/* ---------- iOS status ---------- */
+/* ---------- iOS status: a framed box, so it reads as iOS-only ---------- */
 
 .place-ios {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
 }
 
 .place-ios-label {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 11px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 6px;
   margin-right: 2px;
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .place-ios-button {
-  padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 3px 9px;
+  line-height: 16px;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 6px;
   color: rgba(255, 255, 255, 0.5);
   font-size: 12px;
@@ -513,7 +537,7 @@
 
 .place-ios-button:hover:not(:disabled) {
   color: rgba(255, 255, 255, 0.85);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .place-ios-button:disabled {
@@ -533,9 +557,8 @@
 }
 
 .place-ios-conflict {
-  outline: 1px dashed #ffc107;
-  outline-offset: 3px;
-  border-radius: 6px;
+  border-color: #ffc107;
+  border-style: dashed;
 }
 
 /* ---------- Load more / buttons ---------- */
