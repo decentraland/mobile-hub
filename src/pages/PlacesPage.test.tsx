@@ -272,6 +272,21 @@ describe('PlacesPage', () => {
     expect(screen.queryByRole('button', { name: 'Remove banned from Genesis Plaza' })).toBeNull()
   })
 
+  it('adds a place to the first-time carousel from its row', async () => {
+    const user = userEvent.setup()
+    mockUpdatePlace.mockResolvedValue({ ...BOEDO_PLACE, tags: ['banned_ios', 'ftue'] })
+    render(<PlacesPage />)
+    await screen.findByText('Genesis Plaza')
+
+    await user.click(screen.getByRole('button', { name: 'FTUE: Counter-Strike' }))
+
+    expect(mockUpdatePlace).toHaveBeenCalledWith(authenticatedFetch, 'p-boedo', { tags: ['banned_ios', 'ftue'] })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'FTUE: Counter-Strike' }).getAttribute('aria-pressed')).toBe('true')
+    )
+    expect(screen.queryByRole('button', { name: 'Remove ftue from Counter-Strike' })).toBeNull()
+  })
+
   // Replaces the Curation tab's "Export iOS CSV": same columns and file name
   it('exports the places shown, named after the tag filter', async () => {
     const user = userEvent.setup()
