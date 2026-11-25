@@ -15,6 +15,7 @@ import { fetchScenesForPlaces, searchScenes, SEARCH_PAGE_SIZE } from '../feature
 import { csvFilename, downloadCsv, placesCsv } from '../features/scenes/csv'
 import {
   APP_TAGS,
+  BANNED_TAG,
   FEATURED_TAG,
   FTUE_TAG,
   IOS_ALLOWED_TAG,
@@ -418,6 +419,7 @@ export const PlacesPage: FC = () => {
           <h1>Places</h1>
           <p>
             Every place in Genesis City and in Worlds, and the tags the apps read:{' '}
+            <code>{BANNED_TAG}</code> hides a place on Android and iOS,{' '}
             <code>{IOS_ALLOWED_TAG}</code> and <code>{IOS_BANNED_TAG}</code> decide what the iOS
             app lists, <code>{FEATURED_TAG}</code> fills the Discover carousel and{' '}
             <code>{FTUE_TAG}</code> the first-time one. Any other tag works for your own lists.
@@ -683,6 +685,7 @@ const SceneRowItem: FC<{
   const status = iosStatus(tags)
   const ruleBlock = iosRuleBlock(row.info)
   const featured = tags.includes(FEATURED_TAG)
+  const banned = tags.includes(BANNED_TAG)
   const otherTags = tags.filter(t => !hasOwnControl(t))
   const title = rowTitle(row)
   const link = placesSiteUrl(row, SITE_ORIGIN)
@@ -739,7 +742,7 @@ const SceneRowItem: FC<{
               Blocked on iOS: {ruleBlock}
             </span>
           )}
-          {ruleBlock && status === 'allowed' && (
+          {ruleBlock && status === 'allowed' && !banned && (
             <span className="place-row-missing" title={`${IOS_ALLOWED_TAG} keeps it listed on iOS`}>
               {ruleBlock}, listed on iOS because it is Allowed
             </span>
@@ -817,6 +820,16 @@ const SceneRowItem: FC<{
         onClick={() => onSetTags(withFlag(tags, FEATURED_TAG, !featured))}
       >
         ★ Featured
+      </button>
+      <button
+        className={`place-ban ${banned ? 'place-ban-on' : ''}`}
+        aria-pressed={banned}
+        aria-label={`Banned on Android and iOS: ${title}`}
+        title={TAG_MEANING.get(BANNED_TAG)}
+        disabled={disabled}
+        onClick={() => onSetTags(withFlag(tags, BANNED_TAG, !banned))}
+      >
+        ⊘ Banned
       </button>
       <div
         className={`place-ios ${status === 'conflict' ? 'place-ios-conflict' : ''}`}

@@ -38,12 +38,16 @@ export interface SceneRow {
 export const IOS_ALLOWED_TAG = 'allowed_ios'
 export const IOS_BANNED_TAG = 'banned_ios'
 
+// Hidden from Discover on Android and iOS; the BFF applies it over `allowed_ios` and the flag
+export const BANNED_TAG = 'banned'
+
 // The Discover featured carousel lists the places with this tag; `ftue` fills the first-time one
 export const FEATURED_TAG = 'featured'
 export const FTUE_TAG = 'ftue'
 
 // Tags the apps read, in the order the filter lists them, with what each one does there
 export const APP_TAGS: ReadonlyArray<{ tag: string; meaning: string }> = [
+  { tag: BANNED_TAG, meaning: 'Hidden from Discover on Android and iOS' },
   { tag: IOS_ALLOWED_TAG, meaning: 'Listed in the iOS app, whatever its rating' },
   { tag: IOS_BANNED_TAG, meaning: 'Reviewed and kept out of the iOS app' },
   { tag: FEATURED_TAG, meaning: 'Shown in the Discover featured carousel' },
@@ -74,7 +78,7 @@ export function isIosTag(tag: string): boolean {
 
 /** Tags with their own control on each row; the rest show as removable chips. */
 export function hasOwnControl(tag: string): boolean {
-  return isIosTag(tag) || tag === FEATURED_TAG
+  return isIosTag(tag) || tag === FEATURED_TAG || tag === BANNED_TAG
 }
 
 export function normalizeTag(raw: string): string {

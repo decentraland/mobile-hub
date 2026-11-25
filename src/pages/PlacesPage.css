@@ -454,7 +454,8 @@
   gap: 12px;
 }
 
-.place-feature {
+.place-feature,
+.place-ban {
   padding: 6px 12px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -466,7 +467,8 @@
   white-space: nowrap;
 }
 
-.place-feature:hover:not(:disabled) {
+.place-feature:hover:not(:disabled),
+.place-ban:hover:not(:disabled) {
   color: rgba(255, 255, 255, 0.85);
   border-color: rgba(255, 255, 255, 0.3);
 }
@@ -475,6 +477,12 @@
   background: rgba(255, 193, 7, 0.15);
   border-color: rgba(255, 193, 7, 0.55);
   color: #ffc107;
+}
+
+.place-ban-on {
+  background: rgba(255, 68, 68, 0.15);
+  border-color: rgba(255, 68, 68, 0.55);
+  color: #ff6b6b;
 }
 
 /* ---------- iOS status ---------- */
