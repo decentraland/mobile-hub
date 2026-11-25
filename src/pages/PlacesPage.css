@@ -368,6 +368,10 @@
   color: #ffc107;
 }
 
+.place-row-blocked {
+  color: #ff6b6b;
+}
+
 .place-row-tags {
   display: flex;
   flex-wrap: wrap;

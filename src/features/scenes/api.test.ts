@@ -22,6 +22,8 @@ const PLAZA = {
   world_name: null,
   contact_name: 'Foundation',
   user_count: 8,
+  content_rating: 'T',
+  categories: ['social'],
 }
 
 const BOEDO = {
@@ -64,6 +66,8 @@ describe('toSceneInfo', () => {
       thumbnail: 'https://example.test/plaza.png',
       owner: 'Foundation',
       userCount: 8,
+      contentRating: 'T',
+      categories: ['social'],
     })
   })
 
@@ -75,6 +79,8 @@ describe('toSceneInfo', () => {
       worldName: 'boedo.dcl.eth',
       basePosition: null,
       positions: [],
+      contentRating: null,
+      categories: [],
     })
   })
 })

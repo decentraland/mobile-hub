@@ -4,6 +4,7 @@ import {
   findPlace,
   indexPlaces,
   inventoryRows,
+  iosRuleBlock,
   iosStatus,
   listSource,
   featuredOutsideIos,
@@ -54,6 +55,8 @@ function genesis(base: string, positions: string[] = [base], title = `Scene ${ba
     worldName: null,
     owner: null,
     userCount: 0,
+    contentRating: null,
+    categories: [],
   }
 }
 
@@ -69,8 +72,25 @@ function world(name: string, title = name): SceneInfo {
     worldName: name,
     owner: null,
     userCount: 0,
+    contentRating: null,
+    categories: [],
   }
 }
+
+describe('iosRuleBlock', () => {
+  it('names the rating or the casino category the iOS block list hides', () => {
+    expect(iosRuleBlock({ ...world('a.dcl.eth'), contentRating: 'A' })).toBe('Rated A (adult)')
+    expect(iosRuleBlock({ ...world('r.dcl.eth'), contentRating: 'r' })).toBe('Rated R (restricted)')
+    expect(iosRuleBlock({ ...genesis('1,1'), categories: ['game', 'Casino'] })).toBe('Casino')
+  })
+
+  it('leaves unrated, teen and everyone scenes alone, and rows Places does not list', () => {
+    for (const contentRating of ['RP', 'PR', 'T', 'E', null]) {
+      expect(iosRuleBlock({ ...genesis('1,1'), contentRating, categories: ['art'] })).toBeNull()
+    }
+    expect(iosRuleBlock(null)).toBeNull()
+  })
+})
 
 describe('iOS status', () => {
   it('reads allowed, banned, unset, and a scene carrying both', () => {

@@ -22,6 +22,8 @@ interface ApiDestination {
   contact_name?: string | null
   owner?: string | null
   user_count?: number | null
+  content_rating?: string | null
+  categories?: string[] | null
 }
 
 interface DestinationsResponse {
@@ -42,6 +44,8 @@ export function toSceneInfo(destination: ApiDestination): SceneInfo | null {
     thumbnail: destination.image || null,
     owner: destination.contact_name || destination.owner || null,
     userCount: Number(destination.user_count ?? 0) || 0,
+    contentRating: destination.content_rating || null,
+    categories: Array.isArray(destination.categories) ? destination.categories : [],
   }
 
   // Worlds also carry a base_position ("0,0"), so `world` has to be checked first
