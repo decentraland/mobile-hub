@@ -29,6 +29,7 @@ import {
   type Terms,
 } from '../features/creator-fund/api'
 import { creatorsToCsv } from '../features/creator-fund/csv'
+import { isVerified } from '../features/creator-fund/verification'
 import './CreatorFundPage.css'
 
 /** One line of the review step: what a field is now and what it becomes. */
@@ -78,6 +79,10 @@ function shortAddress(address: string): string {
 
 function formatDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'
+}
+
+function formatDay(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
 
 function formatPool(pool: number | null): string {
@@ -687,6 +692,18 @@ const NewsEditor: FC<{
 
 /* ---------------------------------- creators ---------------------------------- */
 
+const VerifiedMark: FC = () => (
+  <span className="cf-verified" tabIndex={0}>
+    <svg viewBox="0 0 16 16" role="img" aria-label="Verified">
+      <circle cx="8" cy="8" r="8" />
+      <path d="M4.5 8.2l2.3 2.3 4.7-4.9" />
+    </svg>
+    <span className="cf-tooltip" role="tooltip">
+      Verified: email confirmed and payout wallet set
+    </span>
+  </span>
+)
+
 const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: Set<string> }> = ({
   creators,
   excluded,
@@ -703,6 +720,8 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
         )
       )
     : creators
+
+  const verified = creators.filter(isVerified).length
 
   const exportCsv = () => {
     const url = URL.createObjectURL(new Blob([creatorsToCsv(shown)], { type: 'text/csv' }))
@@ -734,7 +753,7 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
   return (
     <Section
       title={`Creators (${creators.length})`}
-      hint="Everyone who joined. Names and emails never leave this page."
+      hint={`Everyone who joined, ${verified} verified: email confirmed and payout wallet set. Names and emails never leave this page.`}
       action={
         <button className="cf-button-secondary" onClick={exportCsv} disabled={shown.length === 0}>
           Export CSV{needle ? ` (${shown.length})` : ''}
@@ -752,9 +771,9 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
       <table className="cf-table">
         <thead>
           <tr>
-            <th>Wallet</th>
             <th>Name</th>
             <th>Email</th>
+            <th>Wallet</th>
             <th>Joined</th>
             <th>Terms</th>
             <th>Status</th>
@@ -765,21 +784,30 @@ const CreatorsSection: FC<SectionProps & { creators: AdminCreator[]; excluded: S
           {shown.map(creator => (
             <tr key={creator.address}>
               <td>
+                <div className="cf-creator-name">
+                  {creator.first_name} {creator.last_name}
+                  {isVerified(creator) && <VerifiedMark />}
+                </div>
+              </td>
+              <td>
+                <span title={creator.email_verified_at ? `Confirmed ${formatDate(creator.email_verified_at)}` : undefined}>
+                  {creator.email}
+                </span>
+                {!creator.email_verified_at && <div className="cf-muted cf-todo">not confirmed</div>}
+              </td>
+              <td>
                 <code title={creator.address}>{shortAddress(creator.address)}</code>
+                <div className="cf-muted">
+                  {creator.payout_wallet ? (
+                    <span title={`${creator.payout_wallet.address}, set ${formatDate(creator.payout_wallet.updated_at)}`}>
+                      pays to {shortAddress(creator.payout_wallet.address)}
+                    </span>
+                  ) : (
+                    <span className="cf-todo">no payout wallet</span>
+                  )}
+                </div>
               </td>
-              <td>
-                {creator.first_name} {creator.last_name}
-              </td>
-              <td>
-                {creator.email}
-                {creator.email_verified_at && (
-                  <span className="cf-muted" title={`Verified ${formatDate(creator.email_verified_at)}`}>
-                    {' '}
-                    ✓
-                  </span>
-                )}
-              </td>
-              <td>{formatDate(creator.enrolled_at)}</td>
+              <td className="cf-nowrap">{formatDay(creator.enrolled_at)}</td>
               <td>{creator.terms_version === null ? '—' : `v${creator.terms_version}`}</td>
               <td>
                 <span className={`cf-badge cf-badge-${creator.status}`}>{creator.status}</span>

@@ -27,6 +27,7 @@ const ADA: api.AdminCreator = {
   status: 'active',
   enrolled_at: '2026-11-02T10:00:00.000Z',
   terms_version: 1,
+  payout_wallet: null,
 }
 
 describe('CreatorFundPage', () => {
@@ -48,6 +49,24 @@ describe('CreatorFundPage', () => {
     expect(screen.getByText('running')).toBeTruthy()
     expect(screen.getByText(/Beta terms/)).toBeTruthy()
     expect(api.getCreators).toHaveBeenCalledWith(authenticatedFetch)
+  })
+
+  it('marks a creator verified only once the email is confirmed and a payout wallet is set', async () => {
+    const paid = { address: '0x52908400098527886E0F7030069857D2E4169EE7', updated_at: '2026-11-20T09:00:00.000Z' }
+    vi.mocked(api.getCreators).mockResolvedValue([
+      ADA,
+      { ...ADA, address: '0x2222222222222222222222222222222222222222', first_name: 'Grace', email_verified_at: paid.updated_at },
+      { ...ADA, address: '0x3333333333333333333333333333333333333333', first_name: 'Joan', email_verified_at: paid.updated_at, payout_wallet: paid },
+    ])
+    render(<CreatorFundPage />)
+
+    const row = async (name: string) => within((await screen.findByText(name)).closest('tr')!)
+    expect((await row('Ada Lovelace')).queryByRole('img', { name: 'Verified' })).toBeNull()
+    expect((await row('Ada Lovelace')).getByText('not confirmed')).toBeTruthy()
+    expect((await row('Grace Lovelace')).queryByRole('img', { name: 'Verified' })).toBeNull()
+    expect((await row('Grace Lovelace')).getByText('no payout wallet')).toBeTruthy()
+    expect((await row('Joan Lovelace')).getByRole('img', { name: 'Verified' })).toBeTruthy()
+    expect((await row('Joan Lovelace')).getByText(/pays to 0x5290/)).toBeTruthy()
   })
 
   it('suspends a creator only after the confirm dialog, then reloads', async () => {
