@@ -46,6 +46,11 @@ export interface NewsItem {
 
 export type CreatorStatus = 'active' | 'suspended'
 
+export interface PayoutWallet {
+  address: string
+  updated_at: string
+}
+
 export interface AdminCreator {
   address: string
   first_name: string
@@ -55,6 +60,7 @@ export interface AdminCreator {
   status: CreatorStatus
   enrolled_at: string
   terms_version: number | null
+  payout_wallet: PayoutWallet | null
 }
 
 export interface AdminCyclePlace {

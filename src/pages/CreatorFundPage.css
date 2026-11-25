@@ -127,6 +127,69 @@
   color: #00d9ff;
 }
 
+.cf-creator-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.cf-verified {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  cursor: default;
+}
+
+.cf-verified svg {
+  width: 14px;
+  height: 14px;
+}
+
+.cf-verified circle {
+  fill: #2ecc71;
+}
+
+.cf-verified path {
+  fill: none;
+  stroke: #0b0b0f;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cf-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #0b0b0f;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+  z-index: 10;
+}
+
+.cf-verified:hover .cf-tooltip,
+.cf-verified:focus .cf-tooltip {
+  opacity: 1;
+}
+
+.cf-todo {
+  color: #ffc107;
+}
+
+.cf-nowrap {
+  white-space: nowrap;
+}
+
 .cf-badge-upcoming {
   background: rgba(255, 193, 7, 0.15);
   color: #ffc107;

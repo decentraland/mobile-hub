@@ -11,15 +11,16 @@ const CREATOR: AdminCreator = {
   status: 'active',
   enrolled_at: '2026-11-02T10:00:00.000Z',
   terms_version: 1,
+  payout_wallet: { address: '0x52908400098527886E0F7030069857D2E4169EE7', updated_at: '2026-11-20T09:00:00.000Z' },
 }
 
 describe('creatorsToCsv', () => {
   it('neutralises formula-looking cells and escapes quotes, since creators type their own names', () => {
     const [header, row] = creatorsToCsv([CREATOR]).split('\n')
 
-    expect(header).toBe('address,first_name,last_name,email,email_verified_at,status,enrolled_at,terms_version')
+    expect(header).toBe('address,first_name,last_name,email,email_verified_at,status,enrolled_at,terms_version,payout_wallet,payout_wallet_updated_at,verified')
     expect(row).toBe(
-      `"0x1ea71fa41e7fe758c147eaaaf6a1b3cb0200acec","'=HYPERLINK(""https://evil.example"",""Ada"")","O""Hara","'+ada@example.com","","active","2026-11-02T10:00:00.000Z","1"`
+      `"0x1ea71fa41e7fe758c147eaaaf6a1b3cb0200acec","'=HYPERLINK(""https://evil.example"",""Ada"")","O""Hara","'+ada@example.com","","active","2026-11-02T10:00:00.000Z","1","0x52908400098527886E0F7030069857D2E4169EE7","2026-11-20T09:00:00.000Z","false"`
     )
   })
 })
