@@ -24,6 +24,7 @@ import {
   hasOwnControl,
   indexPlaces,
   inventoryRows,
+  iosRuleBlock,
   iosStatus,
   isIosTag,
   isSearchable,
@@ -420,6 +421,8 @@ export const PlacesPage: FC = () => {
             <code>{IOS_ALLOWED_TAG}</code> and <code>{IOS_BANNED_TAG}</code> decide what the iOS
             app lists, <code>{FEATURED_TAG}</code> fills the Discover carousel and{' '}
             <code>{FTUE_TAG}</code> the first-time one. Any other tag works for your own lists.
+            With the iOS block list on, casinos and places rated A or R show as Blocked on iOS
+            unless they are Allowed.
           </p>
           {!canEdit && (
             <div className="places-warning">Sign in with an allowed wallet to tag places.</div>
@@ -678,6 +681,7 @@ const SceneRowItem: FC<{
   const [draft, setDraft] = useState('')
   const tags = rowTags(row)
   const status = iosStatus(tags)
+  const ruleBlock = iosRuleBlock(row.info)
   const featured = tags.includes(FEATURED_TAG)
   const otherTags = tags.filter(t => !hasOwnControl(t))
   const title = rowTitle(row)
@@ -730,6 +734,16 @@ const SceneRowItem: FC<{
           {userCount > 0 && <span className="place-row-online">● {userCount} online</span>}
           {row.info?.owner && <span>by {row.info.owner}</span>}
           {missingDetails && <span className="place-row-missing">Not listed on Places</span>}
+          {ruleBlock && status === 'unset' && (
+            <span className="place-row-blocked" title="Hidden from iOS automatically. Mark it Allowed to list it anyway.">
+              Blocked on iOS: {ruleBlock}
+            </span>
+          )}
+          {ruleBlock && status === 'allowed' && (
+            <span className="place-row-missing" title={`${IOS_ALLOWED_TAG} keeps it listed on iOS`}>
+              {ruleBlock}, listed on iOS because it is Allowed
+            </span>
+          )}
           {featuredOutsideIos(tags) && (
             <span
               className="place-row-missing"

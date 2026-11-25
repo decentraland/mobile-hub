@@ -79,6 +79,8 @@ function scene(overrides: Partial<SceneInfo> & Pick<SceneInfo, 'key' | 'kind' | 
     worldName: null,
     owner: null,
     userCount: 0,
+    contentRating: null,
+    categories: [],
     ...overrides,
   }
 }
@@ -185,6 +187,26 @@ describe('PlacesPage', () => {
     await waitFor(() =>
       expect(iosGroup('DCL Museum').getByRole('button', { name: 'Allowed' }).getAttribute('aria-pressed')).toBe('true')
     )
+  })
+
+  // The iOS block list hides casinos and A/R ratings on its own; allowed_ios keeps one listed
+  it('marks scenes the iOS block list hides on its own, unless they are allowed', async () => {
+    const user = userEvent.setup()
+    mockSearchScenes.mockResolvedValue({
+      scenes: [
+        { ...MUSEUM, contentRating: 'A' },
+        { ...PLAZA, categories: ['casino'] },
+      ],
+      total: 2,
+    })
+    render(<PlacesPage />)
+    await screen.findByText('Genesis Plaza')
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search places' }), 'museum')
+
+    expect(await screen.findByText('Blocked on iOS: Rated A (adult)')).toBeTruthy()
+    expect(screen.getByText('Casino, listed on iOS because it is Allowed')).toBeTruthy()
+    expect(screen.queryByText('Blocked on iOS: Casino')).toBeNull()
   })
 
   // The iOS app lists anything with allowed_ios, so banning must take it off in the same write

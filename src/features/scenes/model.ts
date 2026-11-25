@@ -16,6 +16,8 @@ export interface SceneInfo {
   worldName: string | null     // Worlds only, lowercased
   owner: string | null
   userCount: number
+  contentRating: string | null // Places API rating: A (adult), R (restricted), T, E; RP/PR unrated
+  categories: string[]
 }
 
 /**
@@ -30,8 +32,9 @@ export interface SceneRow {
   place: Place | null
 }
 
-// The iOS build only lists `allowed_ios` scenes. `banned_ios` records that someone reviewed the
-// scene and said no, which is what separates it from one nobody has looked at yet.
+// With the BFF's `ios-blocklist` flag off, iOS lists only `allowed_ios` scenes. With it on, iOS
+// lists everything except `banned_ios` scenes and the ones `iosRuleBlock` names, unless those
+// are `allowed_ios`. Either way `banned_ios` records that someone reviewed the scene and said no.
 export const IOS_ALLOWED_TAG = 'allowed_ios'
 export const IOS_BANNED_TAG = 'banned_ios'
 
@@ -41,7 +44,7 @@ export const FTUE_TAG = 'ftue'
 
 // Tags the apps read, in the order the filter lists them, with what each one does there
 export const APP_TAGS: ReadonlyArray<{ tag: string; meaning: string }> = [
-  { tag: IOS_ALLOWED_TAG, meaning: 'Listed in the iOS app' },
+  { tag: IOS_ALLOWED_TAG, meaning: 'Listed in the iOS app, whatever its rating' },
   { tag: IOS_BANNED_TAG, meaning: 'Reviewed and kept out of the iOS app' },
   { tag: FEATURED_TAG, meaning: 'Shown in the Discover featured carousel' },
   { tag: FTUE_TAG, meaning: 'Shown in the first-time user carousel' },
@@ -89,6 +92,18 @@ export function iosStatus(tags: string[]): IosStatus {
   if (allowed) return 'allowed'
   if (banned) return 'banned'
   return 'unset'
+}
+
+// The same rules as the BFF's iOS block list (mobile-bff src/logic/content-policy.ts)
+const IOS_BLOCKED_RATINGS: Record<string, string> = { A: 'Rated A (adult)', R: 'Rated R (restricted)' }
+const IOS_BLOCKED_CATEGORIES = ['casino']
+
+/** Why iOS hides the scene without anyone tagging it, or null. `allowed_ios` overrides it. */
+export function iosRuleBlock(info: SceneInfo | null): string | null {
+  if (!info) return null
+  const rating = IOS_BLOCKED_RATINGS[info.contentRating?.toUpperCase() ?? '']
+  if (rating) return rating
+  return info.categories.some(c => IOS_BLOCKED_CATEGORIES.includes(c.toLowerCase())) ? 'Casino' : null
 }
 
 export function withTag(tags: string[], rawTag: string): string[] {

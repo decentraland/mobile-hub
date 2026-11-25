@@ -16,6 +16,8 @@ const ROW: SceneRow = {
     worldName: 'boedo.dcl.eth',
     owner: 'Boedo',
     userCount: 0,
+    contentRating: null,
+    categories: [],
   },
   place: null,
 }
